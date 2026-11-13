@@ -27,6 +27,7 @@
   <div class="bar">
     <a href="./" id="back">← 回大廳</a>
     <span class="name" id="name"></span>
+    <a class="alt" id="lb" href="leaderboard.html">🏆</a>
     <a class="alt" id="direct" href="#" target="_blank" rel="noopener">全螢幕開 ↗</a>
   </div>
   <div id="slot"></div>
@@ -49,6 +50,7 @@
         document.title = `${g.title} · SC 平台`;
         document.getElementById('name').textContent = g.title;
         document.getElementById('direct').href = g.url;
+        document.getElementById('lb').href = `leaderboard.html?g=${encodeURIComponent(g.slug)}`;
         const f = document.createElement('iframe');
         f.src = g.url;
         f.title = g.title;

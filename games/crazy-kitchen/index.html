@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>瘋狂廚房</title>
+<meta name="description" content="動物客人一直來！照菜單放食材出餐，別讓客人等到生氣。">
+<meta name="game:tags" content="經營,手忙腳亂,單人,排行榜">
+<meta name="game:added" content="2026-11-12">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;font-family:-apple-system,"PingFang TC","Noto Sans TC",sans-serif;color:#4a2c10;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+  body{background:repeating-linear-gradient(45deg,#fff1dc 0 22px,#ffe6c2 22px 44px)}
+  .wrap{max-width:520px;margin:0 auto;height:100%;display:flex;flex-direction:column;padding:10px 12px 14px}
+  .hud{display:flex;justify-content:space-between;align-items:center;font-size:19px;font-weight:800;padding:4px 4px 8px}
+  .hidden{display:none!important}
+  /* 客人 */
+  #custs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;min-height:190px}
+  .slot{border-radius:18px;background:#ffffff60;border:3px dashed #e8c79a;display:flex;align-items:center;justify-content:center;color:#c9a06b;font-size:13px}
+  .cust{border-radius:18px;background:#fff;box-shadow:0 5px 0 #e2b67a;padding:8px 6px 10px;text-align:center;position:relative;cursor:pointer}
+  .cust.fresh{animation:in .35s}
+  .cust:active{transform:translateY(3px);box-shadow:0 2px 0 #e2b67a}
+  @keyframes in{from{transform:translateY(-30px);opacity:0}}
+  .face{font-size:40px;line-height:1.1;position:relative}
+  .mood{position:absolute;right:-2px;top:-4px;font-size:20px}
+  .dish{font-size:34px;margin-top:2px}
+  .dname{font-size:13px;font-weight:800}
+  .need{font-size:17px;margin-top:3px;letter-spacing:1px}
+  .pat{height:8px;border-radius:5px;background:#f1e2cc;margin-top:6px;overflow:hidden}
+  .pat div{height:100%;border-radius:5px;transition:background .3s}
+  .cust.happy{animation:yay .5s forwards}
+  @keyframes yay{50%{transform:scale(1.1)}to{transform:translateY(-40px);opacity:0}}
+  .cust.angry{animation:mad .6s forwards}
+  @keyframes mad{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}to{opacity:0}}
+  .cust.no{animation:no .35s}
+  @keyframes no{25%{transform:rotate(-5deg)}75%{transform:rotate(5deg)}}
+  /* 盤子 */
+  .plateArea{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:150px}
+  #plate{width:min(62vw,240px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,#fff 55%,#e9eef3 56%,#fff 66%,#d8dee6 67%);box-shadow:0 8px 0 #0001;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;align-content:center;gap:2px;padding:18%;font-size:clamp(30px,9vw,42px)}
+  #plate span{animation:drop .25s}
+  @keyframes drop{from{transform:translateY(-40px) scale(1.4);opacity:0}}
+  .hint{font-size:14px;margin-top:8px;opacity:.75;text-align:center;min-height:20px}
+  /* 食材 */
+  #ings{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .ing{border:0;border-radius:16px;background:#fff;box-shadow:0 5px 0 #e2b67a;padding:8px 0 6px;font-size:32px;line-height:1.1;color:#4a2c10}
+  .ing small{display:block;font-size:12px;font-weight:700;margin-top:2px}
+  .ing:active{transform:translateY(3px);box-shadow:0 2px 0 #e2b67a}
+  .ing.lock{opacity:.3}
+  .tools{display:flex;gap:8px;margin-top:8px}
+  .tools button{flex:1;border:0;border-radius:16px;font-size:17px;font-weight:800;padding:12px 0}
+  #trash{background:#ffd6d6;color:#b02a2a;box-shadow:0 4px 0 #f0a3a3}
+  .float{position:fixed;font-size:24px;font-weight:900;pointer-events:none;animation:fl .9s forwards;z-index:9}
+  @keyframes fl{to{transform:translateY(-60px);opacity:0}}
+  #toast{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);background:#4a2c10;color:#fff;font-size:20px;font-weight:800;padding:12px 22px;border-radius:30px;z-index:8;white-space:nowrap;transition:opacity .3s;opacity:0;pointer-events:none}
+  /* 畫面 */
+  .scr{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:22px;text-align:center;background:#fff1dcf2;z-index:10}
+  .scr h1{font-size:38px;margin:4px 0}
+  .scr p{font-size:16px;line-height:1.7;margin:5px 0}
+  .menu{background:#fff;border-radius:18px;padding:10px 16px;margin:10px 0;font-size:16px;line-height:1.9;box-shadow:0 4px 0 #e2b67a;text-align:left}
+  .big{margin-top:14px;font-size:21px;font-weight:800;padding:14px 44px;border:0;border-radius:40px;background:#ff7a2f;color:#fff;box-shadow:0 6px 0 #c4541a}
+  .big:active{transform:translateY(4px);box-shadow:0 2px 0 #c4541a}
+</style>
+<script src="../../shared/score.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <div class="hud"><span id="coins">💰 0</span><span id="day">⏱ 0:00</span><span id="lives">❤️❤️❤️</span></div>
+  <div id="custs"></div>
+  <div class="plateArea">
+    <div id="plate"></div>
+    <div class="hint" id="hint">點下面的食材放進盤子，再點客人出餐！</div>
+  </div>
+  <div id="ings"></div>
+  <div class="tools"><button id="trash">🗑 倒掉重做</button></div>
+</div>
+<div id="toast"></div>
+
+<div class="scr" id="home">
+  <h1>🍳 瘋狂廚房</h1>
+  <p>動物客人一直來！<br>照著客人點的菜放食材，再點客人出餐</p>
+  <div class="menu" id="menuList"></div>
+  <p>⏳ 客人等太久會生氣離開<br>❌ 送錯菜客人也會不開心<br>❤️ 3 位客人氣跑就打烊了</p>
+  <p id="best" style="font-weight:800"></p>
+  <button class="big" id="go">開店！</button>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const buzz=ms=>{try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}};
+const ING={bread:['🍞','麵包'],meat:['🥩','肉排'],lettuce:['🥬','生菜'],cheese:['🧀','起司'],tomato:['🍅','番茄'],egg:['🥚','雞蛋'],rice:['🍚','白飯'],fish:['🐟','魚肉']};
+const DISH=[
+  {e:'🍔',n:'漢堡',r:['bread','meat','lettuce'],p:30,at:0},
+  {e:'🍣',n:'壽司',r:['rice','fish'],p:25,at:0},
+  {e:'🥗',n:'沙拉',r:['lettuce','tomato'],p:20,at:0},
+  {e:'🍳',n:'番茄炒蛋',r:['tomato','egg'],p:25,at:45},
+  {e:'🍕',n:'披薩',r:['bread','cheese','tomato'],p:35,at:45},
+  {e:'🍛',n:'蛋炒飯',r:['rice','egg','meat'],p:35,at:90},
+  {e:'🥪',n:'起司三明治',r:['bread','cheese','egg','lettuce'],p:50,at:90},
+];
+const ANIMALS=['🐶','🐱','🐰','🐻','🐼','🦊','🐨','🐯','🐷','🐸','🐵','🐮'];
+const ORDER=['bread','meat','lettuce','cheese','tomato','egg','rice','fish'];
+$('menuList').innerHTML=DISH.map(d=>`${d.e} ${d.n}：${d.r.map(k=>ING[k][0]).join('')}${d.at?` <small style="opacity:.6">(${d.at/45===1?'中午':'晚上'}解鎖)</small>`:''}`).join('<br>');
+
+let best=0;try{best=+localStorage.getItem('kitchenBest')||0}catch(e){}
+const showBest=()=>$('best').textContent=best?`🏆 最高收入：💰 ${best}`:'';showBest();
+
+let slots,plate,coins,lives,time,running=false,spawnT,last=0,served,unlockedShown;
+
+function avail(){return DISH.filter(d=>time>=d.at)}
+function usedIngs(){const s=new Set();avail().forEach(d=>d.r.forEach(k=>s.add(k)));return s}
+
+function buildIngs(){
+  const u=usedIngs();
+  $('ings').innerHTML='';
+  ORDER.forEach(k=>{const b=document.createElement('button');b.className='ing'+(u.has(k)?'':' lock');b.innerHTML=`${ING[k][0]}<small>${ING[k][1]}</small>`;
+    b.onpointerdown=e=>{e.preventDefault();if(!running)return;if(!u.has(k)){toast('這個食材還沒解鎖');return}if(plate.length>=5){toast('盤子滿了！');return}plate.push(k);buzz(8);drawPlate()};
+    $('ings').appendChild(b)});
+}
+function drawPlate(){$('plate').innerHTML=plate.map(k=>`<span>${ING[k][0]}</span>`).join('');
+  const m=slots.find(c=>c&&match(c.d));$('hint').textContent=plate.length?(m?`可以送給 ${m.a} 了！點牠出餐 👆`:'繼續加食材…'):'點下面的食材放進盤子，再點客人出餐！'}
+function match(d){if(plate.length!==d.r.length)return false;const a=[...plate].sort().join(),b=[...d.r].sort().join();return a===b}
+
+function toast(s){const t=$('toast');t.textContent=s;t.style.opacity=1;clearTimeout(t._h);t._h=setTimeout(()=>t.style.opacity=0,1000)}
+function floatAt(el,txt,col){const r=el.getBoundingClientRect();const d=document.createElement('div');d.className='float';d.textContent=txt;d.style.color=col;d.style.left=(r.left+r.width/2-30)+'px';d.style.top=(r.top+20)+'px';document.body.appendChild(d);setTimeout(()=>d.remove(),900)}
+
+function spawn(){
+  const free=[0,1,2].filter(i=>!slots[i]);if(!free.length)return;
+  const i=free[Math.floor(Math.random()*free.length)];
+  const ds=avail();const d=ds[Math.floor(Math.random()*ds.length)];
+  const pat=Math.max(9,22-time/12)+d.r.length*1.5;
+  slots[i]={d,a:ANIMALS[Math.floor(Math.random()*ANIMALS.length)],pat,max:pat,el:null,gone:false,fresh:true};
+  render();
+}
+function render(){
+  const box=$('custs');box.innerHTML='';
+  slots.forEach((c,i)=>{
+    if(!c){const s=document.createElement('div');s.className='slot';s.textContent='空位';box.appendChild(s);return}
+    const el=document.createElement('div');el.className='cust'+(c.fresh?' fresh':'');c.fresh=false;
+    el.innerHTML=`<div class="face">${c.a}<span class="mood"></span></div><div class="dish">${c.d.e}</div><div class="dname">${c.d.n}</div><div class="need">${c.d.r.map(k=>ING[k][0]).join('')}</div><div class="pat"><div></div></div>`;
+    el.onpointerdown=e=>{e.preventDefault();serve(i)};
+    c.el=el;box.appendChild(el);
+  });
+  updPat();
+}
+function updPat(){slots.forEach(c=>{if(!c||!c.el)return;const r=c.pat/c.max;const bar=c.el.querySelector('.pat div');bar.style.width=Math.max(0,r*100)+'%';
+  bar.style.background=r>.5?'#5cc96b':r>.25?'#ffb627':'#ff5252';c.el.querySelector('.mood').textContent=r>.5?'😊':r>.25?'😐':'😠'})}
+
+function serve(i){
+  if(!running)return;const c=slots[i];if(!c||c.gone)return;
+  if(!plate.length){toast('盤子是空的喔！');return}
+  if(match(c.d)){
+    const tip=Math.round(c.pat/c.max*c.d.p*.6);const got=c.d.p+tip;coins+=got;served++;
+    floatAt(c.el,`+${got}${tip>8?' 💖':''}`,'#2b9a3e');buzz(25);c.gone=true;c.el.classList.add('happy');
+    plate=[];drawPlate();hud();setTimeout(()=>{slots[i]=null;render()},500);
+  }else{
+    c.pat-=c.max*.3;floatAt(c.el,'這不是我點的！','#d33');buzz(120);c.el.classList.remove('no');void c.el.offsetWidth;c.el.classList.add('no');
+    plate=[];drawPlate();updPat();if(c.pat<=0)leave(i);
+  }
+}
+function leave(i){const c=slots[i];if(!c||c.gone)return;c.gone=true;lives--;hud();buzz(200);floatAt(c.el,'哼！😤','#d33');c.el.classList.add('angry');
+  setTimeout(()=>{slots[i]=null;render()},600);if(lives<=0)setTimeout(over,700)}
+function hud(){$('coins').textContent='💰 '+coins;$('lives').textContent='❤️'.repeat(Math.max(0,lives))+'🖤'.repeat(3-Math.max(0,lives));
+  const m=Math.floor(time/60),s=Math.floor(time%60);$('day').textContent=`⏱ ${m}:${String(s).padStart(2,'0')}`}
+
+function loop(ts){const dt=Math.min(.05,(ts-last)/1000||0);last=ts;
+  if(running){
+    const before=time;time+=dt;
+    if(Math.floor(before/45)!==Math.floor(time/45)&&time<100){const nd=DISH.filter(d=>d.at>before&&d.at<=time);if(nd.length){toast(`🎉 新菜色：${nd.map(d=>d.e+d.n).join('、')}`);buildIngs()}}
+    spawnT-=dt;if(spawnT<=0){spawn();spawnT=Math.max(2.2,6-time/25)}
+    slots.forEach((c,i)=>{if(c&&!c.gone){c.pat-=dt;if(c.pat<=0)leave(i)}});
+    updPat();hud();
+  }
+  requestAnimationFrame(loop)}
+
+function start(){slots=[null,null,null];plate=[];coins=0;lives=3;time=0;served=0;spawnT=.5;buildIngs();render();drawPlate();hud();$('home').classList.add('hidden');running=true}
+function over(){if(!running)return;running=false;
+  let rec='';if(coins>best){best=coins;try{localStorage.setItem('kitchenBest',best)}catch(e){}rec='<br>🎉 新紀錄！'}
+  const m=Math.floor(time/60),s=Math.floor(time%60);
+  document.querySelector('#home h1').textContent=coins>=1500?'👨‍🍳 傳說大廚！':coins>=600?'🍽 人氣餐廳！':'🍳 打烊囉～';
+  document.querySelector('#home p').innerHTML=`今天賺了 <b>💰 ${coins}</b><br>服務了 <b>${served}</b> 位客人，營業 ${m} 分 ${s} 秒${rec}`;
+  showBest();$('go').textContent='明天再開店';$('home').classList.remove('hidden');
+  window.SCGames&&SCGames.submit('crazy-kitchen',coins,{unit:'元'})}
+$('trash').onclick=()=>{if(plate.length){plate=[];drawPlate();buzz(15)}};
+$('go').onclick=start;
+slots=[null,null,null];plate=[];time=0;buildIngs();render();requestAnimationFrame(loop);
+</script>
+</body>
+</html>

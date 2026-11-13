@@ -9,6 +9,9 @@
 ```
 index.html                 大廳：讀 games.json 顯示卡片、標籤篩選、最新在前
 play.html                  遊戲外框頁：上方「← 回大廳」列 + iframe 載入遊戲
+leaderboard.html           排行榜頁：選遊戲、選難度榜
+shared/score.js            共用分數工具：遊戲結算時呼叫 SCGames.submit()
+CLAUDE.md                  給其他 Claude 對話的上架規則
 games/<slug>/index.html    一款遊戲一個資料夾，單一 HTML 自包含
 games/<slug>/cover.png     縮圖（可選，建議 800×500）
 scripts/build-index.mjs    掃 games/*/index.html → 產生 games.json
@@ -73,6 +76,21 @@ slug（資料夾名）只能用小寫英數與 `-`，會出現在網址上：`pl
 - **不可放任何 API key / token**。這是公開 repo、公開網站，任何寫進去的 key 等於公開。`add-game.mjs` 會掃常見 key 樣式並警告。
 - 外部資源只從 CDN 載（cdnjs / jsDelivr / unpkg / esm.sh）；圖片、音效等放在 `games/<slug>/` 底下用相對路徑。
 - 不放全名、照片、生日等個資。
+
+## 排行榜
+
+遊戲在 `<head>` 載入 `../../shared/score.js`，結算時呼叫一次：
+
+```js
+window.SCGames && SCGames.submit('<slug>', score);                              // 越高越好
+window.SCGames && SCGames.submit('<slug>', moves, { order: 'asc', unit: '步' }); // 越低越好
+```
+
+第一次會請玩家輸入名字，之後在畫面下方顯示名次與「看排行榜」連結。
+
+- **預設：本機排行榜**，存在各裝置的 `localStorage`，不用任何設定。
+- **線上排行榜（Google 試算表）**：照 `scripts/leaderboard-apps-script.gs` 開頭的 4 個步驟部署，
+  把網址填進 `shared/score.js` 的 `ENDPOINT` 後 push。分數會寫進試算表，可直接打開查看或刪除。
 
 ## 縮圖
 

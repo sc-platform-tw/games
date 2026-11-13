@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>咕咕跳跳</title>
+<meta name="description" content="幫小雞咕咕一路跳上雲端，收集玉米、踩彈簧菇，看能爬多高！">
+<meta name="game:tags" content="動作,跳躍,單人,排行榜">
+<meta name="game:added" content="2026-11-12">
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#8fd3ff;font-family:-apple-system,"PingFang TC","Noto Sans TC",sans-serif;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+  canvas{display:block;width:100vw;height:100vh}
+  #hud{position:fixed;top:12px;left:16px;right:16px;display:flex;justify-content:space-between;color:#fff;font-size:20px;font-weight:800;pointer-events:none;text-shadow:0 2px 0 #3b7fb8}
+  #ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;background:#8fd3ffdd;color:#2a3a55}
+  #ov h1{font-size:38px;margin:4px 0;color:#fff;text-shadow:3px 3px 0 #ff8c2e}
+  #ov p{font-size:17px;line-height:1.7;margin:5px 0}
+  .card{background:#fff;border-radius:18px;padding:12px 20px;margin:10px 0;font-size:16px;line-height:1.9;text-align:left;box-shadow:0 4px 0 #6bb6e8}
+  button{margin-top:16px;font-size:21px;font-weight:800;padding:14px 44px;border:0;border-radius:40px;background:#ff8c2e;color:#fff;box-shadow:0 6px 0 #c9620f}
+  button:active{transform:translateY(4px);box-shadow:0 2px 0 #c9620f}
+  .hidden{display:none!important}
+</style>
+<script src="../../shared/score.js"></script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"><span id="h">🏔 0 m</span><span id="s">🌽 0</span></div>
+<div id="ov">
+  <h1>🐣 咕咕跳跳</h1>
+  <p id="sub">幫咕咕跳上雲端！</p>
+  <div class="card" id="howto">
+    👆 按住<b>螢幕左邊</b>往左、<b>右邊</b>往右<br>
+    ☁️ 白雲：一般的雲<br>
+    💨 藍雲：會左右移動<br>
+    🌥 灰雲：踩一次就會散掉<br>
+    🍄 彈簧菇：超級大跳！<br>
+    🌽 玉米粒：收集加分<br>
+    ↔️ 從畫面邊邊出去，會從另一邊出來
+  </div>
+  <p id="best" style="font-weight:800"></p>
+  <button id="go">開始跳！</button>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H;
+function resize(){const d=devicePixelRatio||1;W=innerWidth;H=innerHeight;cv.width=W*d;cv.height=H*d;ctx.setTransform(d,0,0,d,0,0)}
+addEventListener('resize',resize);resize();
+const $=id=>document.getElementById(id);
+const buzz=ms=>{try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}};
+let best=0;try{best=+localStorage.getItem('chickJump')||0}catch(e){}
+const showBest=()=>$('best').textContent=best?`🏆 最高紀錄：${best} m`:'';showBest();
+
+const G=1500,JUMP=-760,SPRING=-1350,SPEED=330;
+let p,plats,corns,parts,cam,maxY,corn,running=false,dir=0,last=0,t=0,bgClouds;
+
+function newPlat(y){
+  const h=-y; // 爬越高越難
+  const r=Math.random();
+  let type='normal';
+  if(h>600&&r<Math.min(.55,.25+h/20000))type='move';
+  const w=Math.max(58,92-h/400);
+  const pl={x:Math.random()*(W-w),y,w,type,vx:type==='move'?(Math.random()<.5?-1:1)*(70+Math.min(h/40,110)):0,gone:false,spring:false};
+  if(type!=='break'&&Math.random()<.07)pl.spring=true;
+  if(Math.random()<.35)corns.push({x:pl.x+pl.w/2,y:y-38,got:false,t:Math.random()*6});
+  // 灰雲是額外的陷阱雲，不會擋住主要路線
+  if(h>1200&&Math.random()<Math.min(.4,.1+h/25000)){const bw=70;plats.push({x:Math.random()*(W-bw),y:y+30+Math.random()*20,w:bw,type:'break',vx:0,gone:false,spring:false,extra:true})}
+  return pl;
+}
+function reset(){
+  p={x:W/2,y:H-120,vx:0,vy:JUMP,face:1,squash:0};
+  plats=[];corns=[];parts=[];cam=0;maxY=p.y;corn=0;
+  plats.push({x:W/2-50,y:H-60,w:100,type:'normal',vx:0,gone:false,spring:false});
+  let y=H-60;while(y>-H){y-=gap(y);plats.push(newPlat(y))}
+  bgClouds=[...Array(6)].map(()=>({x:Math.random()*W,y:Math.random()*H,s:.6+Math.random()*.8}));
+}
+function gap(y){const h=-y;return 62+Math.random()*28+Math.min(h/90,55)}
+
+// 操作：按住左/右半邊
+const held=new Map();
+function upd(){let l=0,r=0;held.forEach(x=>x<W/2?l++:r++);dir=r-l>0?1:l-r>0?-1:(l&&r?0:0);if(!l&&!r)dir=0}
+cv.addEventListener('touchstart',e=>{for(const t of e.changedTouches)held.set(t.identifier,t.clientX);upd()},{passive:true});
+cv.addEventListener('touchmove',e=>{for(const t of e.changedTouches)held.set(t.identifier,t.clientX);upd()},{passive:true});
+const end=e=>{for(const t of e.changedTouches)held.delete(t.identifier);upd()};
+cv.addEventListener('touchend',end);cv.addEventListener('touchcancel',end);
+cv.addEventListener('mousedown',e=>{held.set('m',e.clientX);upd()});
+cv.addEventListener('mousemove',e=>{if(held.has('m')){held.set('m',e.clientX);upd()}});
+addEventListener('mouseup',()=>{held.delete('m');upd()});
+addEventListener('keydown',e=>{if(e.key==='ArrowLeft')dir=-1;if(e.key==='ArrowRight')dir=1});
+addEventListener('keyup',e=>{if(e.key==='ArrowLeft'||e.key==='ArrowRight')dir=0});
+
+function burst(x,y,col,n=10){for(let i=0;i<n;i++){const a=Math.random()*6.28,s=60+Math.random()*140;parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-60,l:.6,col})}}
+
+function update(dt){
+  t+=dt;
+  p.vx+=((dir*SPEED)-p.vx)*Math.min(1,dt*10);
+  if(dir)p.face=dir;
+  p.x+=p.vx*dt;
+  if(p.x<-20)p.x=W+20;if(p.x>W+20)p.x=-20;
+  const oldY=p.y;p.vy+=G*dt;p.y+=p.vy*dt;
+  p.squash=Math.max(0,p.squash-dt*4);
+  for(const pl of plats){
+    if(pl.type==='move'){pl.x+=pl.vx*dt;if(pl.x<0){pl.x=0;pl.vx*=-1}if(pl.x+pl.w>W){pl.x=W-pl.w;pl.vx*=-1}}
+    if(pl.gone)continue;
+    if(p.vy>0&&oldY+18<=pl.y&&p.y+18>=pl.y&&p.x>pl.x-14&&p.x<pl.x+pl.w+14){
+      if(pl.type==='break'){pl.gone=true;burst(p.x,pl.y,'#b8c0cc',14);buzz(20);p.vy=JUMP*.75;}
+      else if(pl.spring&&Math.abs(p.x-(pl.x+pl.w/2))<26){p.vy=SPRING;burst(p.x,pl.y,'#ff5c8a',16);buzz(40)}
+      else p.vy=JUMP;
+      p.y=pl.y-18;p.squash=1;
+    }
+  }
+  for(const c of corns){c.t+=dt;if(!c.got&&Math.hypot(c.x-p.x,c.y-p.y)<30){c.got=true;corn++;burst(c.x,c.y,'#ffd23f',8);buzz(10)}}
+  // 相機往上跟
+  const target=p.y-H*.42;if(target<cam)cam=target;
+  if(p.y<maxY)maxY=p.y;
+  // 補新雲、清舊雲
+  let top=Math.min(...plats.filter(q=>!q.extra).map(q=>q.y));
+  while(top>cam-80){top-=gap(top);plats.push(newPlat(top))}
+  plats=plats.filter(q=>q.y<cam+H+60);corns=corns.filter(c=>c.y<cam+H+60);
+  for(let i=parts.length-1;i>=0;i--){const q=parts[i];q.x+=q.vx*dt;q.y+=q.vy*dt;q.vy+=500*dt;q.l-=dt;if(q.l<=0)parts.splice(i,1)}
+  $('h').textContent='🏔 '+height()+' m';$('s').textContent='🌽 '+corn;
+  if(p.y>cam+H+40)gameOver();
+}
+const height=()=>Math.max(0,Math.round((H-120-maxY)/20));
+
+function cloud(x,y,w,col,shade){
+  ctx.fillStyle=shade;ctx.beginPath();ctx.ellipse(x+w/2,y+6,w/2,10,0,0,7);ctx.fill();
+  ctx.fillStyle=col;ctx.beginPath();
+  ctx.ellipse(x+w/2,y,w/2,11,0,0,7);ctx.ellipse(x+w*.32,y-7,w*.2,10,0,0,7);ctx.ellipse(x+w*.64,y-9,w*.22,12,0,0,7);ctx.fill();
+}
+function drawChick(x,y){
+  ctx.save();ctx.translate(x,y);
+  const sq=p.squash*.25,stretch=p.vy<0?Math.min(.15,-p.vy/6000):0;
+  ctx.scale(p.face*(1+sq-stretch),1-sq+stretch);
+  ctx.lineWidth=2.5;ctx.strokeStyle='#3a2600';
+  ctx.strokeStyle='#ff6b35';ctx.lineWidth=4;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-4,-20);ctx.quadraticCurveTo(-3,-30,2,-24);ctx.quadraticCurveTo(4,-32,8,-22);ctx.stroke();
+  ctx.lineWidth=2.5;ctx.strokeStyle='#3a2600';
+  ctx.fillStyle='#fff4b8';ctx.beginPath();ctx.ellipse(0,0,20,19,0,0,7);ctx.fill();ctx.stroke();
+  const flap=Math.sin(t*25)*(p.vy<0?.5:.15);
+  ctx.fillStyle='#ffe680';ctx.save();ctx.translate(-17,3);ctx.rotate(-.5-flap);ctx.beginPath();ctx.ellipse(0,0,5,9,0,0,7);ctx.fill();ctx.stroke();ctx.restore();
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(5,-5,6,0,7);ctx.fill();ctx.stroke();
+  ctx.fillStyle='#3a2600';ctx.beginPath();ctx.arc(7,-5,3,0,7);ctx.fill();
+  ctx.fillStyle='#ff8c2e';ctx.beginPath();ctx.moveTo(15,0);ctx.lineTo(26,3);ctx.lineTo(15,7);ctx.closePath();ctx.fill();ctx.stroke();
+  ctx.fillStyle='#ff9eb5';ctx.beginPath();ctx.ellipse(4,6,4,2.5,0,0,7);ctx.fill();
+  ctx.strokeStyle='#ff8c2e';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-5,18);ctx.lineTo(-6,25);ctx.moveTo(5,18);ctx.lineTo(6,25);ctx.stroke();
+  ctx.restore();
+}
+function draw(){
+  const h=height();const k=Math.min(1,h/1500);
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,`hsl(${205+k*45},${70-k*20}%,${72-k*45}%)`);g.addColorStop(1,`hsl(${200+k*30},80%,${85-k*35}%)`);
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  if(k>.5){ctx.fillStyle='#fff';for(let i=0;i<40;i++){ctx.globalAlpha=(k-.5)*2*(.3+.5*Math.abs(Math.sin(i*7+t)));ctx.fillRect((i*97)%W,(i*53+(-cam*.05))%H,2,2)}ctx.globalAlpha=1}
+  for(const b of bgClouds){const y=((b.y-cam*.2)%(H+80)+H+80)%(H+80)-40;ctx.globalAlpha=.35;cloud(b.x-50*b.s,y,100*b.s,'#fff','#fff0');ctx.globalAlpha=1}
+  ctx.save();ctx.translate(0,-cam);
+  for(const pl of plats){if(pl.gone)continue;
+    if(pl.type==='normal')cloud(pl.x,pl.y,pl.w,'#ffffff','#cfe8f7');
+    else if(pl.type==='move')cloud(pl.x,pl.y,pl.w,'#c5ecff','#7cc4ea');
+    else cloud(pl.x,pl.y,pl.w,'#d5d9e0','#9aa3af');
+    if(pl.type==='break'){ctx.strokeStyle='#8a929e';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(pl.x+pl.w*.45,pl.y-14);ctx.lineTo(pl.x+pl.w*.52,pl.y-3);ctx.lineTo(pl.x+pl.w*.46,pl.y+8);ctx.stroke()}
+    if(pl.spring){const cx=pl.x+pl.w/2,cy=pl.y-14;ctx.fillStyle='#fff3e0';ctx.fillRect(cx-5,cy,10,8);ctx.fillStyle='#ff5c8a';ctx.beginPath();ctx.ellipse(cx,cy,15,9,0,Math.PI,0);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(cx-6,cy-4,2.5,0,7);ctx.arc(cx+5,cy-5,2,0,7);ctx.fill()}
+  }
+  for(const c of corns){if(c.got)continue;const yy=c.y+Math.sin(c.t*3)*4;ctx.fillStyle='#ffd23f';ctx.strokeStyle='#d99a00';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(c.x,yy,7,9,0,0,7);ctx.fill();ctx.stroke();ctx.fillStyle='#fff8';ctx.beginPath();ctx.arc(c.x-2,yy-3,2,0,7);ctx.fill()}
+  for(const q of parts){ctx.globalAlpha=Math.max(0,q.l/.6);ctx.fillStyle=q.col;ctx.beginPath();ctx.arc(q.x,q.y,3.5,0,7);ctx.fill()}ctx.globalAlpha=1;
+  if(p)drawChick(p.x,p.y);
+  ctx.restore();
+  if(running&&t<3){ctx.globalAlpha=Math.max(0,1-t/3)*.5;ctx.fillStyle='#fff';ctx.fillRect(0,H-90,W/2-2,90);ctx.fillRect(W/2+2,H-90,W/2,90);ctx.globalAlpha=Math.max(0,1-t/3);ctx.fillStyle='#2a3a55';ctx.font='bold 26px sans-serif';ctx.textAlign='center';ctx.fillText('◀ 按這裡',W/4,H-38);ctx.fillText('按這裡 ▶',W*.75,H-38);ctx.globalAlpha=1}
+}
+function loop(ts){const dt=Math.min(.033,(ts-last)/1000||0);last=ts;if(running)update(dt);draw();requestAnimationFrame(loop)}
+function gameOver(){
+  running=false;buzz(200);
+  const h=height(),total=h+corn*10;let msg='';
+  if(h>best){best=h;try{localStorage.setItem('chickJump',best)}catch(e){}msg='<br>🎉 新紀錄！'}
+  document.querySelector('#ov h1').textContent=h>=1000?'🚀 咕咕上太空！':h>=400?'🎉 好高喔！':'🐣 咕咕掉下去了～';
+  $('sub').innerHTML=`爬了 <b>${h} m</b>，吃到 <b>${corn}</b> 顆玉米${msg}`;
+  $('howto').classList.add('hidden');showBest();$('go').textContent='再跳一次';$('ov').classList.remove('hidden');
+  window.SCGames&&SCGames.submit('chick-jump',h,{unit:'m'});
+}
+$('go').onclick=()=>{reset();t=0;held.clear();dir=0;$('ov').classList.add('hidden');running=true};
+reset();requestAnimationFrame(loop);
+</script>
+</body>
+</html>

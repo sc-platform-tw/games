@@ -25,7 +25,7 @@ const TYPES = {
 };
 
 // 跟 Pages 一樣不提供 inbox/、scripts/ 等非網站內容
-const PUBLIC = /^(index\.html|play\.html|games\.json|assets\/|games\/)/;
+const PUBLIC = /^(index\.html|play\.html|leaderboard\.html|games\.json|assets\/|shared\/|games\/)/;
 
 export function startServer(port = 8080) {
   const server = createServer(async (req, res) => {

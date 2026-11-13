@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>排行榜 · SC 平台遊戲大廳</title>
+  <meta name="color-scheme" content="light dark">
+  <script src="shared/score.js"></script>
+  <style>
+    :root {
+      --bg: #f6f5f2; --fg: #1d1d1f; --muted: #6b6b70; --card: #ffffff;
+      --line: #e3e1dc; --accent: #2f6fed; --chip: #ecebe7; --chip-on: #1d1d1f; --chip-on-fg: #fff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #141416; --fg: #f2f2f4; --muted: #a0a0a8; --card: #1d1d21;
+        --line: #2c2c32; --accent: #7aa2ff; --chip: #26262b; --chip-on: #f2f2f4; --chip-on-fg: #141416;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg);
+      font: 16px/1.5 system-ui, -apple-system, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif; }
+    .wrap { max-width: 640px; margin: 0 auto; padding: 0 16px 48px; }
+    header { padding: 28px 0 8px; }
+    header a { color: var(--accent); text-decoration: none; font-size: 14px; }
+    h1 { margin: 8px 0 0; font-size: 28px; }
+    .sub { color: var(--muted); margin: 4px 0 0; font-size: 14px; }
+    .bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+    .chip { border: 0; border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 14px;
+      background: var(--chip); color: var(--fg); cursor: pointer; }
+    .chip[aria-pressed="true"] { background: var(--chip-on); color: var(--chip-on-fg); }
+    .boards .chip { border-radius: 8px; }
+    .panel { margin-top: 18px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+    .panel h2 { margin: 0; padding: 14px 16px; font-size: 18px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .panel h2 a { font-size: 14px; color: var(--accent); text-decoration: none; font-weight: 600; white-space: nowrap; }
+    ol { list-style: none; margin: 0; padding: 0; }
+    li { display: grid; grid-template-columns: 40px 1fr auto; gap: 8px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+    li:last-child { border-bottom: 0; }
+    .rk { font-weight: 700; color: var(--muted); text-align: center; }
+    li:nth-child(1) .rk, li:nth-child(2) .rk, li:nth-child(3) .rk { font-size: 20px; }
+    .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dt { color: var(--muted); font-size: 12px; }
+    .sc { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .empty { padding: 24px 16px; color: var(--muted); text-align: center; }
+    .note { color: var(--muted); font-size: 13px; margin-top: 12px; }
+    .note button { font: inherit; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <a href="./">← 回大廳</a>
+      <h1>🏆 排行榜</h1>
+      <p class="sub" id="mode"></p>
+    </header>
+    <div class="bar" id="games"></div>
+    <div class="bar boards" id="boards"></div>
+    <div class="panel">
+      <h2><span id="title">—</span><a id="play" href="#">去玩 →</a></h2>
+      <ol id="list"></ol>
+    </div>
+    <p class="note">你的名字：<b id="me"></b>　<button id="rename" type="button">改名字</button></p>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const medal = ['🥇', '🥈', '🥉'];
+    let games = [], slug = new URLSearchParams(location.search).get('g') || '', board = '';
+
+    $('mode').textContent = SCGames.online() ? '線上排行榜：所有人的分數都在這裡。' : '目前是「本機排行榜」：只顯示這台裝置玩過的紀錄。';
+    const showMe = () => ($('me').textContent = SCGames.playerName() || '（還沒設定）');
+    showMe();
+    $('rename').onclick = () => { SCGames.setPlayerName(); const iv = setInterval(() => { if (!document.querySelector('.scg-modal')) { clearInterval(iv); showMe(); } }, 300); };
+
+    function renderGames() {
+      $('games').innerHTML = games.map((g) =>
+        `<button class="chip" data-slug="${esc(g.slug)}" aria-pressed="${g.slug === slug}">${esc(g.title)}</button>`).join('');
+    }
+    function renderBoards(list) {
+      const bs = list.length > 1 || (list.length === 1 && list[0]) ? list : [];
+      $('boards').innerHTML = bs.map((b) =>
+        `<button class="chip" data-board="${esc(b)}" aria-pressed="${b === board}">${esc(b || '一般')}</button>`).join('');
+    }
+    async function load() {
+      const g = games.find((x) => x.slug === slug);
+      if (!g) return;
+      $('title').textContent = g.title;
+      $('play').href = `play.html?g=${encodeURIComponent(g.slug)}`;
+      const url = new URL(location.href); url.searchParams.set('g', slug); history.replaceState(null, '', url);
+      $('list').innerHTML = '<li class="empty" style="display:block">讀取中…</li>';
+      const res = await SCGames.top(slug, { board, limit: 20 });
+      const boards = res.boards && res.boards.length ? res.boards : SCGames.boards(slug);
+      if (!boards.includes(board)) { board = boards[0] || ''; if (board) return load(); }
+      renderBoards(boards);
+      const unit = res.unit || SCGames.meta(slug).unit;
+      $('list').innerHTML = res.list.length
+        ? res.list.map((r, i) => `<li><span class="rk">${medal[i] || i + 1}</span>
+            <span class="nm">${esc(r.name || '玩家')}<br><span class="dt">${r.t ? new Date(r.t).toLocaleDateString('zh-TW') : ''}</span></span>
+            <span class="sc">${esc(r.score)}${unit ? ' ' + esc(unit) : ''}</span></li>`).join('')
+        : '<li class="empty" style="display:block">還沒有紀錄，快去玩一場！</li>';
+    }
+
+    $('games').addEventListener('click', (e) => {
+      const b = e.target.closest('.chip'); if (!b) return;
+      slug = b.dataset.slug; board = ''; renderGames(); load();
+    });
+    $('boards').addEventListener('click', (e) => {
+      const b = e.target.closest('.chip'); if (!b) return;
+      board = b.dataset.board; load();
+    });
+
+    fetch('games.json', { cache: 'no-cache' })
+      .then((r) => r.json())
+      .then((d) => {
+        // 有接排行榜的遊戲（標籤含「排行榜」）排前面
+        games = d.games.slice().sort((a, b) => (b.tags.includes('排行榜') - a.tags.includes('排行榜')));
+        if (!games.some((g) => g.slug === slug)) slug = games[0]?.slug || '';
+        renderGames(); load();
+      })
+      .catch(() => { $('list').innerHTML = '<li class="empty" style="display:block">讀不到 games.json</li>'; });
+  </script>
+</body>
+</html>

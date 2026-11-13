@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>顏色大考驗</title>
+<meta name="description" content="字寫「紅」但顏色是藍？選對顏色，別被字騙了！">
+<meta name="game:tags" content="益智,反應力,單人,排行榜">
+<meta name="game:added" content="2026-11-12">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:#f6f1e7;font-family:-apple-system,"PingFang TC","Noto Sans TC",sans-serif;color:#2e2a3b;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+  .scr{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;text-align:center}
+  .hidden{display:none!important}
+  h1{font-size:36px;margin:6px 0}
+  h1 span{display:inline-block}
+  p{font-size:17px;line-height:1.7;margin:6px 0}
+  .btn{margin-top:18px;font-size:21px;font-weight:800;padding:14px 44px;border:0;border-radius:40px;background:#2e2a3b;color:#fff;box-shadow:0 6px 0 #000}
+  .btn:active{transform:translateY(4px);box-shadow:0 2px 0 #000}
+  .demo{background:#fff;border-radius:18px;padding:12px 20px;margin:12px 0;font-size:16px;box-shadow:0 3px 0 #e2dccf}
+  .bar{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;font-size:18px;font-weight:800}
+  #timebar{position:fixed;top:52px;left:18px;right:18px;height:10px;border-radius:6px;background:#e2dccf;overflow:hidden}
+  #timefill{height:100%;width:100%;background:#2e2a3b;border-radius:6px}
+  #rule{font-size:20px;font-weight:800;padding:8px 22px;border-radius:30px;margin-bottom:14px;transition:background .2s,color .2s}
+  #rule.ink{background:#2e2a3b;color:#fff}
+  #rule.mean{background:#ffcf3f;color:#2e2a3b;animation:flash .5s}
+  @keyframes flash{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+  #word{font-size:min(30vw,130px);font-weight:900;line-height:1.1;margin:10px 0 30px;transition:transform .1s}
+  #word.hit{transform:scale(1.15)}
+  #word.miss{animation:shake .35s}
+  @keyframes shake{25%{transform:translateX(-12px)}75%{transform:translateX(12px)}}
+  #opts{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:min(90vw,380px)}
+  #opts button{font-size:26px;font-weight:900;padding:18px 0;border:0;border-radius:18px;background:#fff;box-shadow:0 5px 0 #e2dccf;color:#2e2a3b}
+  #opts button:active{transform:translateY(3px);box-shadow:0 2px 0 #e2dccf}
+  #combo{height:26px;font-size:18px;font-weight:800;color:#e8590c;margin-top:16px}
+  .float{position:fixed;font-size:26px;font-weight:900;pointer-events:none;animation:fl .7s forwards}
+  @keyframes fl{to{transform:translateY(-60px);opacity:0}}
+  .row{display:flex;justify-content:space-between;width:min(80vw,300px);font-size:18px;padding:8px 4px;border-bottom:2px dashed #2e2a3b22}
+</style>
+<script src="../../shared/score.js"></script>
+</head>
+<body>
+
+<div class="scr" id="home">
+  <h1 id="logo"></h1>
+  <p>看清楚，<b>不要被字騙了！</b></p>
+  <div class="demo">
+    <div style="font-size:44px;font-weight:900;color:#1c7ed6">紅</div>
+    這個字寫「紅」，但顏色是<b style="color:#1c7ed6">藍色</b><br>→ 要選「<b>藍</b>」！
+  </div>
+  <p>⏳ 每題都有時間限制，越後面越快<br>❤️ 答錯或超時扣一條命，共 3 條命<br>⚠️ 第 15 題之後，題目有時候會變成<br><b style="background:#ffcf3f;padding:0 6px;border-radius:6px">選字的意思</b>，要看清楚！</p>
+  <p id="bestHome" style="font-weight:800"></p>
+  <button class="btn" id="go">開始挑戰！</button>
+</div>
+
+<div class="hidden" id="game">
+  <div class="bar"><span id="lives">❤️❤️❤️</span><span id="qnum">第 1 題</span><span id="score">0 分</span></div>
+  <div id="timebar"><div id="timefill"></div></div>
+  <div class="scr" style="padding-top:70px">
+    <div id="rule" class="ink">選字的顏色</div>
+    <div id="word">紅</div>
+    <div id="opts"></div>
+    <div id="combo"></div>
+  </div>
+</div>
+
+<div class="scr hidden" id="end">
+  <h1 id="endTitle"></h1>
+  <div class="row"><span>答對題數</span><b id="eRight"></b></div>
+  <div class="row"><span>最高連擊</span><b id="eCombo"></b></div>
+  <div class="row"><span>總分</span><b id="eScore"></b></div>
+  <p id="eBest" style="font-weight:800;margin-top:14px"></p>
+  <p id="eTip" style="opacity:.75"></p>
+  <button class="btn" id="again">再玩一次</button>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const C=[
+  {n:'紅',c:'#e03131'},{n:'藍',c:'#1c7ed6'},{n:'綠',c:'#2f9e44'},
+  {n:'黃',c:'#f2b705'},{n:'紫',c:'#9c36b5'},{n:'橘',c:'#f76707'},
+];
+const show=id=>['home','game','end'].forEach(s=>$(s).classList.toggle('hidden',s!==id));
+const buzz=ms=>{try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}};
+const rnd=n=>Math.floor(Math.random()*n);
+const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]]}return a};
+function floatAt(x,y,t,col){const d=document.createElement('div');d.className='float';d.textContent=t;d.style.left=(x-24)+'px';d.style.top=(y-30)+'px';d.style.color=col;document.body.appendChild(d);setTimeout(()=>d.remove(),700)}
+
+$('logo').innerHTML=['顏','色','大','考','驗'].map((ch,i)=>`<span style="color:${C[(i+1)%6].c};transform:rotate(${i%2?6:-6}deg)">${ch}</span>`).join('');
+let best=0;try{best=+localStorage.getItem('stroopBest')||0}catch(e){}
+const showBest=()=>$('bestHome').textContent=best?`🏆 最高分：${best}`:'';showBest();
+
+let q,score,lives,combo,maxCombo,right,answer,limit,tStart,raf,lock;
+
+function start(){q=0;score=0;lives=3;combo=0;maxCombo=0;right=0;hud();show('game');next()}
+function hud(){$('lives').textContent='❤️'.repeat(lives)+'🖤'.repeat(3-lives);$('score').textContent=score+' 分';$('qnum').textContent=`第 ${q} 題`}
+
+function next(){
+  q++;hud();lock=false;
+  const nColors=q<6?4:q<16?5:6;
+  const pool=shuffle(C.slice()).slice(0,nColors);
+  const word=pool[0];
+  let ink=pool[1+rnd(pool.length-1)];
+  if(q<4&&Math.random()<.3)ink=word; // 一開始偶爾給簡單題
+  const mean=q>=15&&Math.random()<.3;
+  const rule=$('rule');rule.className=mean?'mean':'ink';rule.textContent=mean?'⚠️ 選字的意思':'選字的顏色';
+  answer=mean?word.n:ink.n;
+  const w=$('word');w.textContent=word.n;w.style.color=ink.c;w.className='';
+  // 選項：一定包含正確答案和「陷阱」答案
+  let opts=[word,ink];pool.forEach(p=>{if(opts.length<4&&!opts.includes(p))opts.push(p)});
+  while(opts.length<4){const p=C[rnd(6)];if(!opts.includes(p))opts.push(p)}
+  shuffle(opts);
+  const box=$('opts');box.innerHTML='';
+  opts.forEach(o=>{const b=document.createElement('button');b.textContent=o.n;
+    if(q>=8){const tc=C[rnd(6)];b.style.color=tc.c} // 後面選項也會變色來混淆
+    b.onpointerdown=e=>pick(o.n,e);box.appendChild(b)});
+  limit=Math.max(1100,3200-q*90);tStart=performance.now();
+  cancelAnimationFrame(raf);tick();
+}
+function tick(){const left=1-(performance.now()-tStart)/limit;const f=$('timefill');f.style.width=Math.max(0,left*100)+'%';f.style.background=left<.3?'#e03131':'#2e2a3b';
+  if(left<=0){if(!lock)wrong(null,'超時！');return}raf=requestAnimationFrame(tick)}
+
+function pick(n,e){
+  if(lock)return;lock=true;cancelAnimationFrame(raf);
+  if(n===answer){
+    combo++;right++;maxCombo=Math.max(maxCombo,combo);
+    const speed=1-(performance.now()-tStart)/limit;
+    const pts=10+Math.round(speed*10)+Math.min(combo,10)*2;score+=pts;
+    floatAt(e.clientX,e.clientY,'+'+pts,'#2f9e44');buzz(15);
+    $('word').className='hit';$('combo').textContent=combo>=3?`🔥 ${combo} 連擊！`:'';
+    hud();setTimeout(next,220);
+  }else wrong(e,'錯了！');
+}
+function wrong(e,msg){
+  lock=true;cancelAnimationFrame(raf);lives--;combo=0;buzz(150);$('combo').textContent='';
+  $('word').className='miss';
+  if(e)floatAt(e.clientX,e.clientY,msg,'#e03131');else floatAt(innerWidth/2,innerHeight/2-60,msg,'#e03131');
+  [...$('opts').children].forEach(b=>{if(b.textContent===answer)b.style.outline='4px solid #2f9e44'});
+  hud();
+  setTimeout(()=>lives<=0?end():next(),900);
+}
+function end(){
+  $('endTitle').textContent=score>=600?'🧠 眼力大師！':score>=300?'👀 很厲害喔！':'😵 被顏色騙了！';
+  $('eRight').textContent=right+' 題';$('eCombo').textContent=maxCombo+' 連擊';$('eScore').textContent=score+' 分';
+  if(score>best){best=score;try{localStorage.setItem('stroopBest',best)}catch(e){}$('eBest').textContent='✨ 新的最高分！'}else $('eBest').textContent=`最高分：${best}`;
+  const tips=['小技巧：不要讀字，把它當成一塊顏色來看！','小技巧：看到黃色提示，就要改成讀字喔！','小技巧：按鈕的顏色也是陷阱，只看按鈕上的字！'];
+  $('eTip').textContent=tips[rnd(3)];showBest();show('end');
+  window.SCGames&&SCGames.submit('color-test',score);
+}
+$('go').onclick=start;$('again').onclick=start;
+</script>
+</body>
+</html>

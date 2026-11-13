@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>疊疊樂</title>
+<meta name="description" content="點一下讓方塊落下，對準了才疊得高，看你能蓋幾層！">
+<meta name="game:tags" content="休閒,反應力,單人,排行榜">
+<meta name="game:added" content="2026-11-12">
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#2b2d5c;font-family:-apple-system,"PingFang TC","Noto Sans TC",sans-serif;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+  canvas{display:block;width:100vw;height:100vh}
+  #hud{position:fixed;top:40px;left:0;right:0;text-align:center;color:#fff;pointer-events:none}
+  #num{font-size:64px;font-weight:900;text-shadow:0 4px 0 #0003}
+  #msg{font-size:22px;font-weight:800;height:30px;color:#ffe066;transition:opacity .3s}
+  #ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;background:#2b2d5ccc;color:#fff}
+  #ov h1{font-size:40px;margin:4px 0}
+  #ov p{font-size:17px;line-height:1.8;margin:5px 0;opacity:.95}
+  button{margin-top:18px;font-size:21px;font-weight:800;padding:14px 44px;border:0;border-radius:40px;background:#ffcf3f;color:#3a2a00;box-shadow:0 6px 0 #c99a10}
+  button:active{transform:translateY(4px);box-shadow:0 2px 0 #c99a10}
+  .hidden{display:none!important}
+</style>
+<script src="../../shared/score.js"></script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud" class="hidden"><div id="num">0</div><div id="msg"></div></div>
+<div id="ov">
+  <h1>🧊 疊疊樂</h1>
+  <p id="sub">方塊會左右移動，<b>點一下</b>讓它落下！<br>沒對齊的部分會被切掉 ✂️<br>對得剛剛好會出現 ✨完美✨，<br>連續完美方塊還會變寬喔！</p>
+  <p id="best" style="font-weight:800"></p>
+  <button id="go">開始疊！</button>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H;
+function resize(){const d=devicePixelRatio||1;W=innerWidth;H=innerHeight;cv.width=W*d;cv.height=H*d;ctx.setTransform(d,0,0,d,0,0)}
+addEventListener('resize',resize);resize();
+const $=id=>document.getElementById(id);
+const buzz=ms=>{try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}};
+let best=0;try{best=+localStorage.getItem('stackBest')||0}catch(e){}
+const showBest=()=>$('best').textContent=best?`🏆 最高紀錄：${best} 層`:'';showBest();
+
+const BH=34;
+let stack,cur,falling,sparks,cam,camT,score,combo,state='menu',hue0,t=0,last=0,msgT=0;
+const baseW=()=>Math.min(W*.6,260);
+const color=(i,l=60)=>`hsl(${(hue0+i*9)%360},75%,${l}%)`;
+
+function reset(){
+  hue0=Math.random()*360;const w=baseW();
+  stack=[{x:W/2-w/2,w,i:0}];falling=[];sparks=[];score=0;combo=0;cam=0;camT=0;
+  spawn();
+}
+function spawn(){
+  const top=stack[stack.length-1];const i=stack.length;
+  const speed=Math.min(170+i*9,520);const fromLeft=i%2===1;
+  cur={x:fromLeft?-top.w:W,w:top.w,i,v:fromLeft?speed:-speed};
+}
+function yOf(i){return H*.72-i*BH}
+
+function drop(){
+  if(state!=='play')return;
+  const top=stack[stack.length-1];
+  const L=Math.max(cur.x,top.x),R=Math.min(cur.x+cur.w,top.x+top.w);
+  const ov=R-L;
+  if(ov<=0){ // 完全沒疊到
+    falling.push({x:cur.x,w:cur.w,y:yOf(cur.i),i:cur.i,vy:0,vx:cur.v*.3,rot:0});cur=null;buzz(250);return over();
+  }
+  const diff=Math.abs(cur.x-top.x);
+  if(diff<6){ // 完美
+    combo++;
+    let nx=top.x,nw=top.w;
+    if(combo>=3){const grow=Math.min(14,baseW()-nw);nw+=grow;nx-=grow/2;if(grow>0)say('✨ 完美！方塊變寬了 ✨')
+      else say(`✨ 完美 ×${combo} ✨`)}else say(combo>1?`✨ 完美 ×${combo} ✨`:'✨ 完美！✨');
+    stack.push({x:nx,w:nw,i:cur.i,flash:1});burst(nx+nw/2,yOf(cur.i),cur.i);buzz(25);
+  }else{
+    combo=0;
+    // 掉下來的碎片
+    if(cur.x<top.x)falling.push({x:cur.x,w:top.x-cur.x,y:yOf(cur.i),i:cur.i,vy:0,vx:-60,rot:0});
+    if(cur.x+cur.w>top.x+top.w)falling.push({x:top.x+top.w,w:cur.x+cur.w-(top.x+top.w),y:yOf(cur.i),i:cur.i,vy:0,vx:60,rot:0});
+    stack.push({x:L,w:ov,i:cur.i});buzz(10);
+  }
+  score=stack.length-1;$('num').textContent=score;
+  if(score>4)camT=(score-4)*BH;
+  spawn();
+}
+function say(s){$('msg').textContent=s;msgT=1.1}
+function burst(x,y,i){for(let k=0;k<18;k++){const a=Math.random()*6.28,s=80+Math.random()*160;sparks.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-50,l:.7,c:color(i,75)})}}
+
+function update(dt){
+  t+=dt;
+  if(cur){cur.x+=cur.v*dt;const top=stack[stack.length-1];
+    const minX=Math.min(-cur.w*.2,top.x-cur.w-40),maxX=Math.max(W-cur.w*.8,top.x+top.w+40);
+    if(cur.v>0&&cur.x>maxX)cur.v*=-1;if(cur.v<0&&cur.x<minX)cur.v*=-1}
+  cam+=(camT-cam)*Math.min(1,dt*6);
+  for(let k=falling.length-1;k>=0;k--){const f=falling[k];f.vy+=1400*dt;f.y+=f.vy*dt;f.x+=f.vx*dt;f.rot+=f.vx*.0006;if(f.y>cam+H+200)falling.splice(k,1)}
+  for(let k=sparks.length-1;k>=0;k--){const s=sparks[k];s.x+=s.vx*dt;s.y+=s.vy*dt;s.vy+=400*dt;s.l-=dt;if(s.l<=0)sparks.splice(k,1)}
+  for(const b of stack)if(b.flash)b.flash=Math.max(0,b.flash-dt*2.5);
+  msgT-=dt;$('msg').style.opacity=msgT>0?1:0;
+}
+function block(x,y,w,i,flash){
+  ctx.fillStyle=color(i,45);ctx.fillRect(x,y+BH-8,w,8);
+  ctx.fillStyle=color(i,60);ctx.fillRect(x,y,w,BH-8);
+  ctx.fillStyle='#ffffff40';ctx.fillRect(x,y,w,5);
+  if(flash){ctx.fillStyle=`rgba(255,255,255,${flash*.8})`;ctx.fillRect(x,y,w,BH)}
+}
+function draw(){
+  const top=stack?stack.length:0;
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,`hsl(${(hue0+top*9+180)%360},45%,22%)`);g.addColorStop(1,`hsl(${(hue0+top*9+200)%360},45%,38%)`);
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#ffffff18';for(let k=0;k<30;k++){const y=((k*131+cam*.3)%H+H)%H;ctx.fillRect((k*211)%W,y,2,2)}
+  if(!stack)return;
+  ctx.save();ctx.translate(0,cam);
+  // 底座
+  const b0=stack[0];ctx.fillStyle='#0003';ctx.fillRect(b0.x-10,yOf(0)+BH,b0.w+20,H);
+  for(const b of stack){if(yOf(b.i)+cam>H+40)continue;block(b.x,yOf(b.i),b.w,b.i,b.flash)}
+  if(cur&&state==='play'){
+    const tp=stack[stack.length-1];ctx.fillStyle='#ffffff14';ctx.fillRect(tp.x,yOf(cur.i)-400,tp.w,400+BH); // 對齊輔助線
+    block(cur.x,yOf(cur.i),cur.w,cur.i,0)}
+  for(const f of falling){ctx.save();ctx.translate(f.x+f.w/2,f.y+BH/2);ctx.rotate(f.rot);block(-f.w/2,-BH/2,f.w,f.i,0);ctx.restore()}
+  for(const s of sparks){ctx.globalAlpha=Math.max(0,s.l/.7);ctx.fillStyle=s.c;ctx.beginPath();ctx.arc(s.x,s.y,3.5,0,7);ctx.fill()}ctx.globalAlpha=1;
+  ctx.restore();
+}
+function loop(ts){const dt=Math.min(.033,(ts-last)/1000||0);last=ts;if(state!=='menu')update(dt);draw();requestAnimationFrame(loop)}
+function over(){
+  state='over';
+  setTimeout(()=>{
+    let rec='';if(score>best){best=score;try{localStorage.setItem('stackBest',best)}catch(e){}rec='<br>🎉 新紀錄！'}
+    document.querySelector('#ov h1').textContent=score>=40?'🏙 摩天大樓！':score>=20?'🏢 好高的塔！':'🧊 倒掉了～';
+    $('sub').innerHTML=`你疊了 <b>${score}</b> 層${rec}`;showBest();$('go').textContent='再疊一次';
+    $('hud').classList.add('hidden');$('ov').classList.remove('hidden');
+    window.SCGames&&SCGames.submit('stack-tower',score,{unit:'層'});
+  },900);
+}
+cv.addEventListener('pointerdown',e=>{e.preventDefault();drop()});
+addEventListener('keydown',e=>{if(e.code==='Space')drop()});
+$('go').onclick=e=>{e.stopPropagation();reset();$('num').textContent=0;$('msg').textContent='';$('ov').classList.add('hidden');$('hud').classList.remove('hidden');setTimeout(()=>state='play',50)};
+hue0=200;requestAnimationFrame(loop);
+</script>
+</body>
+</html>

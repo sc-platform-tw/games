@@ -40,7 +40,8 @@ jobs:
       - name: Assemble site (inbox/、scripts/ 不部署)
         run: |
           mkdir -p _site
-          cp index.html play.html games.json _site/
+          cp index.html play.html leaderboard.html games.json _site/
+          cp -R shared _site/shared
           cp -R games _site/games
           [ -d assets ] && cp -R assets _site/assets || true
           touch _site/.nojekyll

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>暴走小雞派對</title>
+<meta name="description" content="連續挑戰 4 個瘋狂小遊戲：狂點、反應、打小雞、搖汽水，看總分多少！">
+<meta name="game:tags" content="派對,反應力,單人,排行榜">
+<meta name="game:added" content="2026-11-12">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;font-family:-apple-system,"PingFang TC","Noto Sans TC",sans-serif;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+  body{background:#ffd23f;color:#3a2600}
+  .scr{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;text-align:center}
+  .hidden{display:none!important}
+  h1{font-size:34px;margin:8px 0;text-shadow:3px 3px 0 #ff6b35}
+  h2{font-size:28px;margin:6px 0}
+  p{font-size:17px;line-height:1.6;margin:6px 0}
+  .btn{margin-top:16px;font-size:21px;font-weight:800;padding:14px 42px;border:0;border-radius:40px;background:#ff6b35;color:#fff;box-shadow:0 6px 0 #c4441a}
+  .btn:active{transform:translateY(4px);box-shadow:0 2px 0 #c4441a}
+  .chick{width:130px;height:130px}
+  .bounce{animation:bounce .6s infinite alternate ease-in-out}
+  @keyframes bounce{to{transform:translateY(-14px) rotate(4deg)}}
+  .wobble{animation:wob .25s infinite alternate}
+  @keyframes wob{from{transform:rotate(-8deg) scale(1)}to{transform:rotate(8deg) scale(1.08)}}
+  .bar{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:14px 18px;font-size:18px;font-weight:800;z-index:5}
+  #tapArea{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .big{font-size:64px;font-weight:900}
+  #react{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:background .1s}
+  #holes{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;width:min(92vw,380px)}
+  .hole{aspect-ratio:1;border-radius:50%;background:radial-gradient(ellipse at 50% 70%,#5a3a10 55%,#8a5a1c 56%);position:relative;overflow:hidden}
+  .pop{position:absolute;left:10%;width:80%;bottom:-90%;transition:bottom .12s;font-size:0}
+  .hole.up .pop{bottom:8%}
+  .pop svg{width:100%;height:auto;display:block}
+  .float{position:fixed;font-size:26px;font-weight:900;pointer-events:none;animation:fl .7s forwards;z-index:9}
+  @keyframes fl{to{transform:translateY(-60px);opacity:0}}
+  .score-row{display:flex;justify-content:space-between;width:min(85vw,320px);font-size:19px;padding:8px 4px;border-bottom:2px dashed #3a260033}
+  .ring{position:fixed;border:4px solid #ff6b35;border-radius:50%;pointer-events:none;animation:ring .4s forwards}
+  @keyframes ring{from{width:0;height:0;opacity:1}to{width:120px;height:120px;margin:-60px;opacity:0}}
+</style>
+<script src="../../shared/score.js"></script>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="chickSym" viewBox="0 0 100 100">
+      <path d="M44 14 Q46 2 52 10 Q55 0 60 12" fill="none" stroke="#ff6b35" stroke-width="5" stroke-linecap="round"/>
+      <ellipse cx="50" cy="58" rx="38" ry="36" fill="#fff4b8" stroke="#3a2600" stroke-width="3"/>
+      <ellipse cx="16" cy="62" rx="9" ry="14" fill="#ffe680" stroke="#3a2600" stroke-width="3" transform="rotate(-25 16 62)"/>
+      <ellipse cx="84" cy="62" rx="9" ry="14" fill="#ffe680" stroke="#3a2600" stroke-width="3" transform="rotate(25 84 62)"/>
+      <circle cx="36" cy="46" r="11" fill="#fff" stroke="#3a2600" stroke-width="3"/>
+      <circle cx="64" cy="46" r="8" fill="#fff" stroke="#3a2600" stroke-width="3"/>
+      <circle cx="39" cy="48" r="5" fill="#3a2600"/>
+      <circle cx="62" cy="44" r="3.5" fill="#3a2600"/>
+      <path d="M40 60 L60 60 L50 74 Z" fill="#ff8c2e" stroke="#3a2600" stroke-width="3" stroke-linejoin="round"/>
+      <ellipse cx="26" cy="64" rx="6" ry="4" fill="#ff9eb5"/>
+      <ellipse cx="74" cy="64" rx="6" ry="4" fill="#ff9eb5"/>
+    </symbol>
+    <symbol id="bombSym" viewBox="0 0 100 100">
+      <circle cx="50" cy="60" r="32" fill="#2b2b38" stroke="#000" stroke-width="3"/>
+      <rect x="42" y="22" width="16" height="12" fill="#555"/>
+      <path d="M50 22 Q58 8 70 12" fill="none" stroke="#c9a26b" stroke-width="4"/>
+      <circle cx="72" cy="11" r="6" fill="#ff9f1c"/>
+      <circle cx="38" cy="50" r="7" fill="#fff5"/>
+    </symbol>
+  </defs>
+</svg>
+
+<!-- 首頁 -->
+<div class="scr" id="home">
+  <svg class="chick bounce"><use href="#chickSym"/></svg>
+  <h1>暴走小雞派對</h1>
+  <p>小雞「咕咕」今天超級暴走！<br>連續挑戰 4 個瘋狂小遊戲，看你能拿幾分！</p>
+  <p id="bestHome"></p>
+  <button class="btn" id="go">開始派對！</button>
+</div>
+
+<!-- 關卡說明 -->
+<div class="scr hidden" id="intro">
+  <p id="introNum" style="font-weight:800;opacity:.7"></p>
+  <h2 id="introTitle"></h2>
+  <svg class="chick wobble"><use href="#chickSym"/></svg>
+  <p id="introDesc"></p>
+  <button class="btn" id="introGo">準備好了！</button>
+</div>
+
+<!-- 遊戲 1：狂點 -->
+<div class="hidden" id="g1">
+  <div class="bar"><span id="g1t">⏱ 5.0</span><span id="g1s">0 下</span></div>
+  <div id="tapArea">
+    <svg class="chick" id="tapChick" style="width:200px;height:200px"><use href="#chickSym"/></svg>
+    <div class="big" id="g1big">0</div>
+    <p>瘋狂點！點！點！</p>
+  </div>
+</div>
+
+<!-- 遊戲 2：反應 -->
+<div class="hidden" id="g2">
+  <div class="bar"><span id="g2r">第 1 / 3 次</span><span id="g2s"></span></div>
+  <div id="react"><div class="big" id="g2big">等一下…</div><p id="g2msg">變成綠色再點！</p></div>
+</div>
+
+<!-- 遊戲 3：打小雞 -->
+<div class="scr hidden" id="g3">
+  <div class="bar"><span id="g3t">⏱ 20</span><span id="g3s">0 分</span></div>
+  <div id="holes"></div>
+  <p style="margin-top:18px">點小雞 +10，點到炸彈 −20！</p>
+</div>
+
+<!-- 遊戲 4：搖汽水 -->
+<div class="hidden" id="g4">
+  <div class="bar"><span id="g4t">⏱ 8.0</span><span id="g4s">0 下</span></div>
+  <div id="shakeArea" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;touch-action:none">
+    <div style="position:relative;width:110px;height:230px">
+      <div id="foam" style="position:absolute;left:50%;bottom:100%;transform:translateX(-50%);font-size:40px;opacity:0;transition:opacity .2s">🫧</div>
+      <div id="bottle" style="width:110px;height:230px;border:5px solid #3a2600;border-radius:30px 30px 22px 22px;background:#ffffff88;position:relative;overflow:hidden">
+        <div id="fizz" style="position:absolute;left:0;right:0;bottom:0;height:0%;background:linear-gradient(#ffb3c7,#ff6b9d);transition:height .1s"></div>
+        <svg viewBox="0 0 100 100" style="position:absolute;left:15px;top:70px;width:70px;height:70px"><use href="#chickSym"/></svg>
+      </div>
+    </div>
+    <div class="big" id="g4big" style="margin-top:14px">0%</div>
+    <p>手指在螢幕上<b>左右狂搓</b>，把汽水搖到爆！</p>
+  </div>
+</div>
+
+<!-- 結算 -->
+<div class="scr hidden" id="result">
+  <h2 id="resTitle"></h2>
+  <svg class="chick bounce"><use href="#chickSym"/></svg>
+  <div id="resRows"></div>
+  <h2 id="resTotal" style="margin-top:12px"></h2>
+  <p id="resBest"></p>
+  <button class="btn" id="again">再來一次</button>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const show=id=>{['home','intro','g1','g2','g3','g4','result'].forEach(s=>$(s).classList.toggle('hidden',s!==id))};
+const buzz=ms=>{try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}};
+function floatAt(x,y,txt,col){const d=document.createElement('div');d.className='float';d.textContent=txt;d.style.left=(x-20)+'px';d.style.top=(y-20)+'px';d.style.color=col;document.body.appendChild(d);setTimeout(()=>d.remove(),700)}
+function ringAt(x,y){const d=document.createElement('div');d.className='ring';d.style.left=x+'px';d.style.top=y+'px';document.body.appendChild(d);setTimeout(()=>d.remove(),400)}
+let best=0;try{best=+localStorage.getItem('chickParty')||0}catch(e){}
+$('bestHome').textContent=best?`最高分：${best}`:'';
+
+const games=[
+  {title:'🔥 狂點咕咕',desc:'5 秒內瘋狂點小雞，<br>點越多下分數越高！',run:game1},
+  {title:'⚡ 閃電反應',desc:'畫面變<b style="color:#1b9e4b">綠色</b>的瞬間馬上點！<br>太早點會被嚇到喔～共 3 次',run:game2},
+  {title:'🔨 打小雞',desc:'小雞從洞裡冒出來就點牠！<br>小心別點到💣炸彈',run:game3},
+  {title:'🥤 搖汽水大賽',desc:'咕咕躲進汽水瓶裡了！<br>8 秒內手指<b>左右狂搓</b>螢幕，<br>把汽水搖到噴出來！',run:game4},
+];
+let idx=0,scores=[];
+$('go').onclick=()=>{idx=0;scores=[];intro()};
+$('again').onclick=()=>{idx=0;scores=[];intro()};
+function intro(){const g=games[idx];$('introNum').textContent=`第 ${idx+1} / ${games.length} 關`;$('introTitle').textContent=g.title;$('introDesc').innerHTML=g.desc;show('intro')}
+$('introGo').onclick=()=>games[idx].run(s=>{scores.push(s);idx++;idx<games.length?intro():result()});
+
+// 遊戲 1
+function game1(done){
+  show('g1');document.body.style.background='#ffd23f';let n=0,t=5,on=true;
+  $('g1big').textContent=0;$('g1s').textContent='0 下';
+  const chick=$('tapChick');
+  const area=$('tapArea');
+  const h=e=>{if(!on)return;e.preventDefault();n++;$('g1big').textContent=n;$('g1s').textContent=n+' 下';
+    chick.style.transform=`scale(${1.15}) rotate(${(Math.random()-.5)*30}deg)`;setTimeout(()=>chick.style.transform='',60);
+    const p=e.changedTouches?e.changedTouches[0]:e;ringAt(p.clientX,p.clientY);if(n%10===0)floatAt(p.clientX,p.clientY,'咕！','#ff6b35')};
+  area.ontouchstart=h;area.onmousedown=e=>{if(!('ontouchstart' in window))h(e)};
+  const start=performance.now();
+  const iv=setInterval(()=>{t=Math.max(0,5-(performance.now()-start)/1000);$('g1t').textContent='⏱ '+t.toFixed(1);
+    if(t<=0){clearInterval(iv);on=false;area.ontouchstart=area.onmousedown=null;buzz(200);setTimeout(()=>done({name:'狂點咕咕',info:n+' 下',pts:n*5}),600)}},50);
+}
+
+// 遊戲 2
+function game2(done){
+  show('g2');const box=$('react');let round=0,times=[],state='wait',t0=0,to=null;
+  const bg=c=>{box.style.background=c;document.body.style.background=c};
+  function next(){
+    if(round>=3){bg('#ffd23f');const valid=times.filter(x=>x>0);const avg=valid.length?Math.round(valid.reduce((a,b)=>a+b)/valid.length):0;
+      const pts=valid.reduce((s,x)=>s+Math.max(0,Math.round((600-x)/4)),0);
+      return setTimeout(()=>done({name:'閃電反應',info:avg?`平均 ${avg} 毫秒`:'全部太早 😵',pts}),300)}
+    $('g2r').textContent=`第 ${round+1} / 3 次`;state='wait';bg('#ff5d5d');$('g2big').textContent='等一下…';$('g2msg').textContent='變成綠色再點！';
+    to=setTimeout(()=>{state='go';bg('#2ecc71');$('g2big').textContent='點！！';$('g2msg').textContent='';t0=performance.now()},1200+Math.random()*2500);
+  }
+  box.onpointerdown=()=>{
+    if(state==='wait'){clearTimeout(to);state='res';times.push(0);buzz(150);bg('#a17dff');$('g2big').textContent='太早了！';$('g2msg').textContent='咕咕被你嚇到了 😱';round++;setTimeout(next,1300)}
+    else if(state==='go'){const ms=Math.round(performance.now()-t0);times.push(ms);state='res';bg('#ffd23f');$('g2big').textContent=ms+' 毫秒';$('g2msg').textContent=ms<250?'快如閃電！⚡':ms<400?'不錯喔！':'咕咕都睡著了 💤';round++;setTimeout(next,1300)}
+  };
+  $('g2s').textContent='';next();
+}
+
+// 遊戲 3
+function game3(done){
+  show('g3');document.body.style.background='#9be15d';
+  const holes=$('holes');holes.innerHTML='';let score=0,t=20,on=true;
+  const hs=[];for(let i=0;i<9;i++){const h=document.createElement('div');h.className='hole';h.innerHTML='<div class="pop"><svg viewBox="0 0 100 100"><use href="#chickSym"/></svg></div>';holes.appendChild(h);hs.push({el:h,type:null,tm:null});
+    h.onpointerdown=e=>{const o=hs[i];if(!on||!o.type)return;
+      if(o.type==='chick'){score+=10;floatAt(e.clientX,e.clientY,'+10','#3a2600');buzz(20)}else{score=Math.max(0,score-20);floatAt(e.clientX,e.clientY,'−20','#d00');buzz(150)}
+      $('g3s').textContent=score+' 分';hide(o)}}
+  function hide(o){o.type=null;o.el.classList.remove('up');clearTimeout(o.tm)}
+  function pop(){if(!on)return;const free=hs.filter(o=>!o.type);if(free.length){const o=free[Math.floor(Math.random()*free.length)];
+      o.type=Math.random()<.22?'bomb':'chick';o.el.querySelector('use').setAttribute('href',o.type==='bomb'?'#bombSym':'#chickSym');o.el.classList.add('up');
+      const stay=Math.max(450,1100-(20-t)*30);o.tm=setTimeout(()=>hide(o),stay)}
+    setTimeout(pop,Math.max(280,700-(20-t)*20))}
+  $('g3s').textContent='0 分';$('g3t').textContent='⏱ 20';pop();
+  const iv=setInterval(()=>{t--;$('g3t').textContent='⏱ '+t;if(t<=0){clearInterval(iv);on=false;hs.forEach(hide);setTimeout(()=>done({name:'打小雞',info:score+' 分',pts:score}),600)}},1000);
+}
+
+// 遊戲 4
+function game4(done){
+  show('g4');document.body.style.background='#7fd8ff';
+  const area=$('shakeArea'),bottle=$('bottle');let n=0,on=true,lastX=null,dir=0,acc=0,boom=false;
+  const MAX=60;$('g4big').textContent='0%';$('g4s').textContent='0 下';$('fizz').style.height='0%';$('foam').style.opacity=0;bottle.style.transform='';
+  area.onpointerdown=e=>{lastX=e.clientX;acc=0;dir=0};
+  area.onpointermove=e=>{if(!on||lastX===null)return;const dx=e.clientX-lastX;lastX=e.clientX;
+    if(Math.sign(dx)!==dir&&Math.abs(dx)>1){if(Math.abs(acc)>25){n++;buzz(8);
+        const pct=Math.min(100,Math.round(n/MAX*100));$('g4big').textContent=pct+'%';$('g4s').textContent=n+' 下';$('fizz').style.height=pct+'%';
+        $('foam').style.opacity=pct>50?1:0;if(pct>=100&&!boom){boom=true;floatAt(innerWidth/2,innerHeight/2-150,'噗嘶～💦','#ff3d7f')}}
+      dir=Math.sign(dx);acc=0}
+    acc+=dx;bottle.style.transform=`rotate(${Math.max(-25,Math.min(25,acc*.4))}deg) translateX(${Math.max(-30,Math.min(30,acc*.5))}px)`};
+  area.onpointerup=area.onpointercancel=()=>{lastX=null;bottle.style.transform=''};
+  const start=performance.now();
+  const iv=setInterval(()=>{const t=Math.max(0,8-(performance.now()-start)/1000);$('g4t').textContent='⏱ '+t.toFixed(1);
+    if(t<=0){clearInterval(iv);on=false;area.onpointermove=area.onpointerdown=null;bottle.style.transform='';buzz(200);
+      const pts=n*5+(n>=MAX?50:0);setTimeout(()=>done({name:'搖汽水大賽',info:n+' 下'+(n>=MAX?'（噴爆！+50）':''),pts}),600)}},50);
+}
+
+function result(){
+  document.body.style.background='#ffd23f';
+  const total=scores.reduce((s,x)=>s+x.pts,0);
+  $('resRows').innerHTML=scores.map(s=>`<div class="score-row"><span>${s.name}<br><small style="opacity:.7">${s.info}</small></span><b>${s.pts} 分</b></div>`).join('');
+  $('resTotal').textContent=`總分：${total}`;
+  $('resTitle').textContent=total>=900?'🏆 暴走之王！':total>=550?'🎉 超厲害！':'🐣 再接再厲！';
+  if(total>best){best=total;try{localStorage.setItem('chickParty',best)}catch(e){}$('resBest').textContent='✨ 新的最高分！'}else $('resBest').textContent=`最高分：${best}`;
+  $('bestHome').textContent=`最高分：${best}`;show('result');
+  window.SCGames&&SCGames.submit('chick-party',total);
+}
+</script>
+</body>
+</html>

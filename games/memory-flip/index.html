@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>記憶翻牌</title>
+<meta name="description" content="翻開兩張一樣的動物就配對成功，用最少步數全部翻完！">
+<meta name="game:tags" content="益智,記憶,單人,排行榜">
+<meta name="game:added" content="2026-11-12">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;background:linear-gradient(160deg,#ffe8f0,#e6e9ff 60%,#e0f7f1);font-family:-apple-system,"PingFang TC","Noto Sans TC",sans-serif;color:#3b3355;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+  .wrap{max-width:520px;margin:0 auto;padding:18px 14px 30px;min-height:100vh;display:flex;flex-direction:column}
+  h1{text-align:center;font-size:28px;margin:6px 0 12px}
+  .levels{display:flex;gap:8px;justify-content:center;margin-bottom:12px}
+  .levels button{flex:1;max-width:120px;font-size:16px;font-weight:700;padding:10px 0;border:0;border-radius:14px;background:#fff;color:#6b5ca5;box-shadow:0 3px 0 #d6d0ef}
+  .levels button.on{background:#7c6cf0;color:#fff;box-shadow:0 3px 0 #5646c4}
+  .stats{display:flex;justify-content:space-around;background:#ffffffaa;border-radius:16px;padding:10px;font-size:16px;font-weight:700;margin-bottom:14px}
+  .stats span small{display:block;font-size:12px;font-weight:500;opacity:.7;text-align:center}
+  .stats span{text-align:center}
+  .grid{display:grid;gap:10px;flex:0 0 auto}
+  .card{aspect-ratio:3/4;perspective:600px;cursor:pointer}
+  .inner{position:relative;width:100%;height:100%;transition:transform .45s cubic-bezier(.3,1.4,.6,1);transform-style:preserve-3d}
+  .card.flip .inner,.card.done .inner{transform:rotateY(180deg)}
+  .face{position:absolute;inset:0;border-radius:14px;display:flex;align-items:center;justify-content:center;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+  .back{background:linear-gradient(135deg,#9b8cff,#ff8fb8);box-shadow:0 4px 0 #6b5cc9;font-size:26px;color:#ffffffcc}
+  .front{background:#fff;transform:rotateY(180deg);box-shadow:0 4px 0 #d6d0ef;font-size:clamp(28px,9vw,44px)}
+  .card.done .front{background:#fff8d6;box-shadow:0 4px 0 #f2d46b;animation:pop .5s}
+  .card.bad .front{animation:shake .4s}
+  @keyframes pop{50%{transform:rotateY(180deg) scale(1.12)}}
+  @keyframes shake{25%{transform:rotateY(180deg) translateX(-6px)}75%{transform:rotateY(180deg) translateX(6px)}}
+  .again{display:block;margin:18px auto 0;font-size:17px;font-weight:700;padding:12px 34px;border:0;border-radius:30px;background:#fff;color:#7c6cf0;box-shadow:0 3px 0 #d6d0ef}
+  #win{position:fixed;inset:0;background:#3b335599;display:flex;align-items:center;justify-content:center;padding:20px}
+  .box{background:#fff;border-radius:24px;padding:28px 24px;text-align:center;max-width:320px;width:100%;animation:up .4s}
+  .box h2{margin:0 0 6px;font-size:30px}
+  .box p{margin:6px 0;font-size:16px}
+  .box .stars{font-size:38px;margin:8px 0}
+  .box button{margin-top:14px;font-size:18px;font-weight:700;padding:12px 36px;border:0;border-radius:30px;background:#7c6cf0;color:#fff;box-shadow:0 4px 0 #5646c4}
+  @keyframes up{from{transform:translateY(30px) scale(.9);opacity:0}}
+  .hidden{display:none!important}
+  .conf{position:fixed;top:-20px;font-size:22px;pointer-events:none;animation:fall linear forwards}
+  @keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
+</style>
+<script src="../../shared/score.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <h1>🃏 記憶翻牌</h1>
+  <div class="levels">
+    <button data-p="6">簡單</button>
+    <button data-p="8" class="on">普通</button>
+    <button data-p="10">困難</button>
+  </div>
+  <div class="stats">
+    <span><small>步數</small><b id="moves">0</b></span>
+    <span><small>時間</small><b id="time">0:00</b></span>
+    <span><small>配對</small><b id="pairs">0/8</b></span>
+    <span><small>最佳</small><b id="best">—</b></span>
+  </div>
+  <div class="grid" id="grid"></div>
+  <button class="again" id="restart">🔄 重新洗牌</button>
+</div>
+<div id="win" class="hidden"><div class="box">
+  <h2>🎉 全部配對成功！</h2>
+  <div class="stars" id="wstars"></div>
+  <p id="wtxt"></p>
+  <p id="wbest"></p>
+  <button id="wbtn">再玩一次</button>
+</div></div>
+<script>
+const EMOJI=['🐶','🐱','🐰','🦊','🐼','🐸','🐵','🐧','🦄','🐙','🐢','🦁','🐨','🐷'];
+const grid=document.getElementById('grid'),movesEl=document.getElementById('moves'),timeEl=document.getElementById('time'),pairsEl=document.getElementById('pairs'),bestEl=document.getElementById('best');
+const win=document.getElementById('win');
+let pairs=8,first=null,lock=false,moves=0,found=0,sec=0,timer=null,started=false;
+const NAMES={6:'簡單',8:'普通',10:'困難'};
+
+function getBest(){try{return JSON.parse(localStorage.getItem('memBest')||'{}')}catch(e){return{}}}
+function setBest(b){try{localStorage.setItem('memBest',JSON.stringify(b))}catch(e){}}
+function fmt(s){return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
+function showBest(){const b=getBest()[pairs];bestEl.textContent=b?b+'步':'—'}
+
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+
+function newGame(){
+  clearInterval(timer);timer=null;started=false;first=null;lock=false;moves=0;found=0;sec=0;
+  movesEl.textContent=0;timeEl.textContent='0:00';pairsEl.textContent='0/'+pairs;showBest();
+  const cols=pairs===6?3:4;grid.style.gridTemplateColumns=`repeat(${cols},1fr)`;
+  const set=shuffle(EMOJI.slice()).slice(0,pairs);const deck=shuffle([...set,...set]);
+  grid.innerHTML='';
+  deck.forEach(e=>{const c=document.createElement('div');c.className='card';c.dataset.e=e;
+    c.innerHTML=`<div class="inner"><div class="face back">✦</div><div class="face front">${e}</div></div>`;
+    c.addEventListener('click',()=>tap(c));grid.appendChild(c)});
+}
+
+function tap(c){
+  if(lock||c===first||c.classList.contains('done'))return;
+  if(!started){started=true;timer=setInterval(()=>{sec++;timeEl.textContent=fmt(sec)},1000)}
+  c.classList.add('flip');
+  if(!first){first=c;return}
+  moves++;movesEl.textContent=moves;
+  const a=first,b=c;first=null;
+  if(a.dataset.e===b.dataset.e){
+    setTimeout(()=>{a.classList.add('done');b.classList.add('done');buzz(30)},250);
+    found++;pairsEl.textContent=found+'/'+pairs;
+    if(found===pairs)setTimeout(finish,700);
+  }else{
+    lock=true;
+    setTimeout(()=>{a.classList.add('bad');b.classList.add('bad')},350);
+    setTimeout(()=>{a.classList.remove('flip','bad');b.classList.remove('flip','bad');lock=false},950);
+  }
+}
+function buzz(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
+
+function finish(){
+  clearInterval(timer);
+  const ratio=moves/pairs;const s=ratio<=1.5?3:ratio<=2.2?2:1;
+  document.getElementById('wstars').textContent='⭐'.repeat(s)+'☆'.repeat(3-s);
+  document.getElementById('wtxt').textContent=`${NAMES[pairs]}模式：${moves} 步，用時 ${fmt(sec)}`;
+  const b=getBest();let msg='';
+  if(!b[pairs]||moves<b[pairs]){b[pairs]=moves;setBest(b);msg='🏆 新的最佳紀錄！'}else msg=`最佳紀錄：${b[pairs]} 步`;
+  document.getElementById('wbest').textContent=msg;showBest();
+  win.classList.remove('hidden');confetti();
+  window.SCGames&&SCGames.submit('memory-flip',moves,{board:NAMES[pairs],order:'asc',unit:'步'});
+}
+function confetti(){const em=['🎉','✨','⭐','🎊','💖'];for(let i=0;i<30;i++){const d=document.createElement('div');d.className='conf';d.textContent=em[i%em.length];d.style.left=Math.random()*100+'vw';d.style.animationDuration=(1.8+Math.random()*1.8)+'s';d.style.animationDelay=Math.random()*.6+'s';document.body.appendChild(d);setTimeout(()=>d.remove(),4500)}}
+
+document.querySelectorAll('.levels button').forEach(btn=>btn.onclick=()=>{
+  document.querySelectorAll('.levels button').forEach(x=>x.classList.remove('on'));btn.classList.add('on');pairs=+btn.dataset.p;newGame()});
+document.getElementById('restart').onclick=newGame;
+document.getElementById('wbtn').onclick=()=>{win.classList.add('hidden');newGame()};
+newGame();
+</script>
+</body>
+</html>
