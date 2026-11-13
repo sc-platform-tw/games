@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>氣球不要掉</title>
+<meta name="description" content="點氣球把它戳上天，別讓它掉到仙人掌上！每 15 秒多一顆氣球，看你撐多久。">
+<meta name="game:tags" content="動作,休閒,單人,排行榜">
+<meta name="game:added" content="2026-11-13">
+<script src="../../shared/score.js"></script>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#bfe9ff;font-family:-apple-system,"PingFang TC","Noto Sans TC",sans-serif;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+  canvas{display:block;width:100vw;height:100vh}
+  #hud{position:fixed;top:12px;left:16px;right:16px;display:flex;justify-content:space-between;font-size:20px;font-weight:800;color:#2a3a55;pointer-events:none}
+  #ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;background:#bfe9ffe6;color:#2a3a55}
+  #ov h1{font-size:38px;margin:4px 0}
+  #ov p{font-size:17px;line-height:1.8;margin:5px 0}
+  .card{background:#fff;border-radius:18px;padding:12px 20px;margin:10px 0;font-size:16px;line-height:1.9;text-align:left;box-shadow:0 4px 0 #8cc8ea}
+  button{margin-top:16px;font-size:21px;font-weight:800;padding:14px 44px;border:0;border-radius:40px;background:#ff5c8a;color:#fff;box-shadow:0 6px 0 #c93763}
+  button:active{transform:translateY(4px);box-shadow:0 2px 0 #c93763}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"><span id="sc">⭐ 0</span><span id="tm">⏱ 0</span><span id="lv">❤️❤️❤️</span></div>
+<div id="ov">
+  <h1>🎈 氣球不要掉</h1>
+  <p id="sub">氣球一直往下掉，地上都是仙人掌 🌵！</p>
+  <div class="card" id="howto">
+    👆 點氣球把它往上戳<br>
+    ↗️ 點氣球的左邊它會往右飛，點右邊往左飛<br>
+    🎈 每 15 秒會多一顆氣球<br>
+    ⭐ 碰到星星可以加 20 分<br>
+    🌵 氣球掉到仙人掌上會破，扣一條命
+  </div>
+  <p id="best" style="font-weight:800"></p>
+  <button id="go">開始！</button>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H;
+function resize(){const d=devicePixelRatio||1;W=innerWidth;H=innerHeight;cv.width=W*d;cv.height=H*d;ctx.setTransform(d,0,0,d,0,0)}
+addEventListener('resize',resize);resize();
+const $=id=>document.getElementById(id);
+const buzz=ms=>{try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}};
+let best=0;try{best=+localStorage.getItem('sc-games:balloon-keep-up:best')||0}catch(e){}
+const showBest=()=>$('best').textContent=best?`🏆 最高分：${best}`:'';showBest();
+
+const COLS=['#ff5c8a','#4dabf7','#ffd43b','#69db7c','#b197fc','#ff922b'];
+const R=36,FLOOR=70;
+let balloons,stars,parts,floats,score,lives,time,running=false,last=0,nextAdd,starT,ci,respawn,shake=0;
+
+function addBalloon(){balloons.push({x:R+Math.random()*(W-2*R),y:-R-10,vx:(Math.random()-.5)*60,vy:20,c:COLS[ci++%COLS.length],rot:0,sq:0,face:0})}
+function reset(){balloons=[];stars=[];parts=[];floats=[];score=0;lives=3;time=0;ci=0;nextAdd=15;starT=6;respawn=[];addBalloon();balloons[0].y=H*.3;hud()}
+function hud(){$('sc').textContent='⭐ '+score;$('tm').textContent='⏱ '+Math.floor(time);$('lv').textContent='❤️'.repeat(Math.max(0,lives))+'🖤'.repeat(3-Math.max(0,lives))}
+function burst(x,y,col,n=16){for(let i=0;i<n;i++){const a=Math.random()*6.28,s=80+Math.random()*200;parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,l:.7,col})}}
+function floatTxt(x,y,t,col){floats.push({x,y,t,col,l:1})}
+
+function tap(x,y){
+  if(!running)return;
+  let hit=null,bd=1e9;
+  for(const b of balloons){const d=Math.hypot(b.x-x,b.y-y);if(d<R*1.75&&d<bd){bd=d;hit=b}}
+  if(!hit)return;
+  const dx=hit.x-x;
+  hit.vy=-Math.min(560,420+time*2);hit.vx=Math.max(-260,Math.min(260,dx*6+(Math.random()-.5)*40));
+  hit.sq=1;hit.face=.4;score++;buzz(10);
+  burst(x,y,'#ffffff',5);hud();
+}
+cv.addEventListener('pointerdown',e=>{e.preventDefault();tap(e.clientX,e.clientY)});
+
+function update(dt){
+  time+=dt;
+  const grav=Math.min(330,190+time*2.2);
+  if(time>=nextAdd&&balloons.length<6){addBalloon();nextAdd+=15;floatTxt(W/2,H*.35,'🎈 又來一顆！','#2a3a55')}
+  starT-=dt;if(starT<=0){stars.push({x:40+Math.random()*(W-80),y:90+Math.random()*(H*.35),l:6,t:0});starT=7+Math.random()*5}
+  for(let i=respawn.length-1;i>=0;i--){respawn[i]-=dt;if(respawn[i]<=0){respawn.splice(i,1);addBalloon()}}
+  for(let i=balloons.length-1;i>=0;i--){const b=balloons[i];
+    b.vy+=grav*dt;b.vy=Math.min(b.vy,260+time*1.5); // 空氣阻力，最多掉這麼快
+    b.vx*=Math.pow(.6,dt);b.x+=b.vx*dt;b.y+=b.vy*dt;b.rot=b.vx*.0012;b.sq=Math.max(0,b.sq-dt*4);b.face=Math.max(0,b.face-dt);
+    if(b.x<R){b.x=R;b.vx=Math.abs(b.vx)*.8}if(b.x>W-R){b.x=W-R;b.vx=-Math.abs(b.vx)*.8}
+    if(b.y<R+40){b.y=R+40;b.vy=Math.abs(b.vy)*.3}
+    // 氣球互撞
+    for(let j=0;j<i;j++){const o=balloons[j];const dx=o.x-b.x,dy=o.y-b.y,d=Math.hypot(dx,dy);if(d>0&&d<R*2){const nx=dx/d,ny=dy/d,push=(R*2-d)/2;b.x-=nx*push;b.y-=ny*push;o.x+=nx*push;o.y+=ny*push;
+      const rv=(o.vx-b.vx)*nx+(o.vy-b.vy)*ny;if(rv<0){b.vx+=rv*nx;b.vy+=rv*ny;o.vx-=rv*nx;o.vy-=rv*ny}}}
+    for(const s of stars){if(!s.got&&Math.hypot(s.x-b.x,s.y-b.y)<R+16){s.got=true;score+=20;burst(s.x,s.y,'#ffd43b',18);floatTxt(s.x,s.y,'+20','#e8a400');buzz(20);hud()}}
+    if(b.y+R>H-FLOOR+12){ // 破掉
+      balloons.splice(i,1);lives--;shake=.4;buzz(200);burst(b.x,b.y,b.c,26);floatTxt(b.x,b.y-30,'啵！💥','#e03131');hud();
+      if(lives<=0)return over();respawn.push(1.2);
+    }
+  }
+  for(const s of stars){s.t+=dt;s.l-=dt}stars=stars.filter(s=>s.l>0&&!s.got);
+  for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=400*dt;p.l-=dt;if(p.l<=0)parts.splice(i,1)}
+  for(let i=floats.length-1;i>=0;i--){const f=floats[i];f.y-=50*dt;f.l-=dt*.9;if(f.l<=0)floats.splice(i,1)}
+  shake=Math.max(0,shake-dt);
+  if(Math.floor(time)!==Math.floor(time-dt)){score+=1;hud()}
+}
+
+function drawBalloon(b){
+  ctx.save();ctx.translate(b.x,b.y);ctx.rotate(b.rot);
+  // 繩子
+  ctx.strokeStyle='#5a6a80';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(0,R+6);
+  for(let k=1;k<=4;k++)ctx.quadraticCurveTo((k%2?8:-8),R+6+k*9-4,0,R+6+k*9);ctx.stroke();
+  const sx=1+b.sq*.15,sy=1-b.sq*.12;ctx.scale(sx,sy);
+  ctx.fillStyle=b.c;ctx.beginPath();ctx.ellipse(0,0,R,R*1.12,0,0,7);ctx.fill();
+  ctx.beginPath();ctx.moveTo(-6,R*1.1);ctx.lineTo(6,R*1.1);ctx.lineTo(0,R*1.1-8);ctx.fill();
+  ctx.fillStyle='#ffffff70';ctx.beginPath();ctx.ellipse(-R*.38,-R*.45,R*.2,R*.32,-.5,0,7);ctx.fill();
+  // 臉
+  const danger=b.y>H-FLOOR-R*3.2;
+  ctx.fillStyle='#2a2a2a';
+  if(b.face>0){ctx.lineWidth=2.5;ctx.strokeStyle='#2a2a2a';ctx.beginPath();ctx.moveTo(-14,-6);ctx.lineTo(-8,-2);ctx.lineTo(-14,2);ctx.moveTo(14,-6);ctx.lineTo(8,-2);ctx.lineTo(14,2);ctx.stroke()}
+  else{ctx.beginPath();ctx.arc(-10,-3,danger?5:3.5,0,7);ctx.arc(10,-3,danger?5:3.5,0,7);ctx.fill()}
+  ctx.beginPath();if(danger){ctx.ellipse(0,12,5,7,0,0,7);ctx.fill()}else{ctx.lineWidth=2.5;ctx.strokeStyle='#2a2a2a';ctx.arc(0,8,7,.2,Math.PI-.2);ctx.stroke()}
+  ctx.fillStyle='#ffffff55';ctx.beginPath();ctx.ellipse(-18,8,5,3,0,0,7);ctx.ellipse(18,8,5,3,0,0,7);ctx.fill();
+  ctx.restore();
+}
+function cactus(x,h){
+  const y=H-FLOOR+18;ctx.fillStyle='#3fa34d';ctx.strokeStyle='#2b7a37';ctx.lineWidth=2;
+  const rr=(x0,y0,w,hh)=>{ctx.beginPath();ctx.roundRect?ctx.roundRect(x0,y0,w,hh,w/2):ctx.rect(x0,y0,w,hh);ctx.fill();ctx.stroke()};
+  rr(x-9,y-h,18,h+10);rr(x-24,y-h*.7,12,h*.35);rr(x-24,y-h*.45,22,10);rr(x+12,y-h*.85,12,h*.4);rr(x+2,y-h*.5,22,10);
+  ctx.strokeStyle='#e9f5d0';ctx.lineWidth=1.5;for(let k=0;k<6;k++){const yy=y-h+8+k*(h/6);ctx.beginPath();ctx.moveTo(x-9,yy);ctx.lineTo(x-14,yy-3);ctx.moveTo(x+9,yy+4);ctx.lineTo(x+14,yy+1);ctx.stroke()}
+}
+function star(x,y,r,rot){ctx.save();ctx.translate(x,y);ctx.rotate(rot);ctx.beginPath();for(let i=0;i<10;i++){const rr=i%2?r*.45:r,a=i*Math.PI/5-Math.PI/2;ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr)}ctx.closePath();ctx.fillStyle='#ffd43b';ctx.shadowColor='#ffd43b';ctx.shadowBlur=16;ctx.fill();ctx.restore()}
+
+function draw(ts){
+  const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#7cc8f7');g.addColorStop(1,'#e3f6ff');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#ffffffb0';for(let k=0;k<4;k++){const x=((k*260+ts*.012*(k%2?1:.6))%(W+200))-100,y=80+k*90;ctx.beginPath();ctx.ellipse(x,y,50,16,0,0,7);ctx.ellipse(x+30,y-10,30,16,0,0,7);ctx.fill()}
+  ctx.save();if(shake>0)ctx.translate((Math.random()-.5)*16*shake,(Math.random()-.5)*16*shake);
+  // 地面
+  ctx.fillStyle='#f2d19b';ctx.fillRect(0,H-FLOOR+18,W,FLOOR);ctx.fillStyle='#e0b877';ctx.fillRect(0,H-FLOOR+18,W,6);
+  for(let x=20;x<W+40;x+=58)cactus(x,40+((x*7)%17));
+  if(balloons){
+    for(const s of stars){ctx.globalAlpha=s.l<1.5?(Math.sin(s.t*20)>0?1:.3):1;star(s.x,s.y+Math.sin(s.t*3)*6,18,s.t)}ctx.globalAlpha=1;
+    for(const b of balloons)drawBalloon(b);
+    for(const p of parts){ctx.globalAlpha=Math.max(0,p.l/.7);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,4,0,7);ctx.fill()}ctx.globalAlpha=1;
+    ctx.font='bold 24px sans-serif';ctx.textAlign='center';for(const f of floats){ctx.globalAlpha=Math.max(0,f.l);ctx.fillStyle=f.col;ctx.fillText(f.t,f.x,f.y)}ctx.globalAlpha=1;
+  }
+  ctx.restore();
+}
+function loop(ts){const dt=Math.min(.033,(ts-last)/1000||0);last=ts;if(running)update(dt);draw(ts);requestAnimationFrame(loop)}
+function over(){
+  running=false;let rec='';
+  if(score>best){best=score;try{localStorage.setItem('sc-games:balloon-keep-up:best',best)}catch(e){}rec='<br>🎉 新紀錄！'}
+  window.SCGames && SCGames.submit('balloon-keep-up', score);
+  setTimeout(()=>{
+    document.querySelector('#ov h1').textContent=score>=300?'🏆 氣球守護神！':score>=120?'🎉 好厲害！':'💥 氣球都破了～';
+    $('sub').innerHTML=`你撐了 <b>${Math.floor(time)}</b> 秒，拿到 <b>${score}</b> 分${rec}`;
+    $('howto').classList.add('hidden');showBest();$('go').textContent='再玩一次';$('ov').classList.remove('hidden');
+  },700);
+}
+$('go').onclick=()=>{reset();$('ov').classList.add('hidden');running=true};
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
