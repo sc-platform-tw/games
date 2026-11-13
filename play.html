@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>SC 平台 · 遊戲大廳</title>
+  <meta name="color-scheme" content="light dark">
+  <style>
+    :root { --bar: #1d1d1f; --bar-fg: #f2f2f4; --muted: #a0a0a8; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: #000; }
+    body { display: flex; flex-direction: column; font: 15px/1.4 system-ui, -apple-system, "PingFang TC", "Noto Sans TC", sans-serif; }
+    .bar {
+      flex: none; display: flex; align-items: center; gap: 12px; padding: 0 12px;
+      padding-top: env(safe-area-inset-top); min-height: 44px; background: var(--bar); color: var(--bar-fg);
+    }
+    .bar a { color: var(--bar-fg); text-decoration: none; padding: 8px 4px; white-space: nowrap; }
+    .bar a:hover { text-decoration: underline; }
+    .bar .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; text-align: center; }
+    .bar .alt { color: var(--muted); font-size: 13px; }
+    iframe { flex: 1; width: 100%; border: 0; background: #fff; display: block; }
+    .msg { color: #eee; padding: 40px 16px; text-align: center; }
+    .msg a { color: #7aa2ff; }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <a href="./" id="back">← 回大廳</a>
+    <span class="name" id="name"></span>
+    <a class="alt" id="direct" href="#" target="_blank" rel="noopener">全螢幕開 ↗</a>
+  </div>
+  <div id="slot"></div>
+
+  <script>
+    // 外框頁：上方固定「回大廳」列，下方 iframe 載入 games/<slug>/。
+    // 只接受 games.json 裡有的 slug，避免被拿來嵌任意網址。
+    const slug = new URLSearchParams(location.search).get('g') || '';
+    const slot = document.getElementById('slot');
+    const fail = (text) => {
+      slot.outerHTML = `<p class="msg">${text}<br><br><a href="./">回大廳</a></p>`;
+      document.getElementById('direct').hidden = true;
+    };
+
+    fetch('games.json', { cache: 'no-cache' })
+      .then((r) => r.json())
+      .then(({ games }) => {
+        const g = games.find((x) => x.slug === slug);
+        if (!g) return fail('找不到這款遊戲。');
+        document.title = `${g.title} · SC 平台`;
+        document.getElementById('name').textContent = g.title;
+        document.getElementById('direct').href = g.url;
+        const f = document.createElement('iframe');
+        f.src = g.url;
+        f.title = g.title;
+        f.allow = 'fullscreen; autoplay; gamepad; clipboard-write';
+        f.allowFullscreen = true;
+        slot.replaceWith(f);
+        f.addEventListener('load', () => f.contentWindow?.focus());
+      })
+      .catch(() => fail('讀不到遊戲清單。'));
+  </script>
+</body>
+</html>

@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SC 平台 · 遊戲大廳</title>
+  <meta name="description" content="SC 平台的小遊戲合集，打開瀏覽器就能玩。">
+  <meta name="color-scheme" content="light dark">
+  <style>
+    :root {
+      --bg: #f6f5f2; --fg: #1d1d1f; --muted: #6b6b70; --card: #ffffff;
+      --line: #e3e1dc; --accent: #2f6fed; --chip: #ecebe7; --chip-on: #1d1d1f; --chip-on-fg: #fff;
+      --shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.05);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #141416; --fg: #f2f2f4; --muted: #a0a0a8; --card: #1d1d21;
+        --line: #2c2c32; --accent: #7aa2ff; --chip: #26262b; --chip-on: #f2f2f4; --chip-on-fg: #141416;
+        --shadow: 0 1px 2px rgba(0,0,0,.4);
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--fg);
+      font: 16px/1.5 system-ui, -apple-system, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+    header { padding: 40px 0 20px; }
+    h1 { margin: 0; font-size: clamp(26px, 5vw, 36px); letter-spacing: .02em; }
+    h1 .dot { color: var(--accent); }
+    .sub { margin: 6px 0 0; color: var(--muted); }
+    .bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 8px; }
+    .chip {
+      border: 0; border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 14px;
+      background: var(--chip); color: var(--fg); cursor: pointer;
+    }
+    .chip[aria-pressed="true"] { background: var(--chip-on); color: var(--chip-on-fg); }
+    .chip:focus-visible, .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .count { color: var(--muted); font-size: 14px; margin: 8px 0 16px; }
+    .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); padding-bottom: 48px; }
+    .card {
+      display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line);
+      border-radius: 14px; overflow: hidden; color: inherit; text-decoration: none; box-shadow: var(--shadow);
+      transition: transform .15s ease;
+    }
+    .card:hover { transform: translateY(-2px); }
+    .thumb { aspect-ratio: 16 / 10; background: var(--chip); position: relative; overflow: hidden; }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .thumb .ph {
+      position: absolute; inset: 0; display: grid; place-items: center;
+      font-size: 56px; font-weight: 700; color: rgba(255,255,255,.92);
+    }
+    .body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+    .title { font-weight: 650; font-size: 17px; margin: 0; }
+    .desc { margin: 0; color: var(--muted); font-size: 14px; flex: 1; }
+    .meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; }
+    .tag { background: var(--chip); border-radius: 6px; padding: 1px 8px; }
+    .date { margin-left: auto; color: var(--muted); }
+    .empty { color: var(--muted); padding: 40px 0; text-align: center; }
+    footer { color: var(--muted); font-size: 13px; padding: 0 0 32px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>SC 平台 <span class="dot">·</span> 遊戲大廳</h1>
+      <p class="sub">打開就能玩的小遊戲。點卡片開始。</p>
+      <nav class="bar" id="tags" aria-label="依標籤篩選"></nav>
+    </header>
+    <main>
+      <p class="count" id="count"></p>
+      <div class="grid" id="grid"></div>
+    </main>
+    <footer>遊戲進度只存在你自己的瀏覽器裡。</footer>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const hue = (s) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
+
+    let games = [];
+    let active = new URLSearchParams(location.search).get('tag') || '';
+
+    function renderTags() {
+      const counts = {};
+      for (const g of games) for (const t of g.tags) counts[t] = (counts[t] || 0) + 1;
+      const tags = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b, 'zh-Hant'));
+      if (active && !counts[active]) active = '';
+      $('tags').innerHTML = ['', ...tags]
+        .map((t) => `<button class="chip" data-tag="${esc(t)}" aria-pressed="${t === active}">${t ? esc(t) + ' ' + counts[t] : '全部'}</button>`)
+        .join('');
+    }
+
+    function renderGrid() {
+      const list = active ? games.filter((g) => g.tags.includes(active)) : games;
+      $('count').textContent = `${list.length} 款遊戲${active ? `・標籤「${active}」` : ''}・最新在前`;
+      $('grid').innerHTML = list.length
+        ? list.map((g) => {
+            const h = hue(g.slug);
+            const thumb = g.cover
+              ? `<img src="${esc(g.cover)}" alt="" loading="lazy">`
+              : `<div class="ph" style="background:linear-gradient(135deg,hsl(${h} 70% 55%),hsl(${(h + 50) % 360} 70% 45%))">${esc([...g.title][0] || '?')}</div>`;
+            return `<a class="card" href="play.html?g=${encodeURIComponent(g.slug)}">
+              <div class="thumb">${thumb}</div>
+              <div class="body">
+                <h2 class="title">${esc(g.title)}</h2>
+                <p class="desc">${esc(g.description)}</p>
+                <div class="meta">${g.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}<span class="date">${esc(g.added)}</span></div>
+              </div>
+            </a>`;
+          }).join('')
+        : '<p class="empty">這個標籤還沒有遊戲。</p>';
+    }
+
+    $('tags').addEventListener('click', (e) => {
+      const b = e.target.closest('.chip');
+      if (!b) return;
+      active = b.dataset.tag;
+      const url = new URL(location.href);
+      active ? url.searchParams.set('tag', active) : url.searchParams.delete('tag');
+      history.replaceState(null, '', url);
+      renderTags();
+      renderGrid();
+    });
+
+    fetch('games.json', { cache: 'no-cache' })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((data) => {
+        games = data.games.slice().sort((a, b) => b.added.localeCompare(a.added));
+        renderTags();
+        renderGrid();
+      })
+      .catch(() => {
+        $('grid').innerHTML = '<p class="empty">讀不到 games.json。本機請先執行 <code>node scripts/build-index.mjs</code>。</p>';
+      });
+  </script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "sc-platform-games",
+  "private": true,
+  "type": "module",
+  "description": "SC 平台 · 遊戲大廳（GitHub Pages 靜態網站）",
+  "scripts": {
+    "build": "node scripts/build-index.mjs",
+    "covers": "node scripts/make-covers.mjs",
+    "add": "node scripts/add-game.mjs",
+    "serve": "node scripts/serve.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.49.1"
+  }
+}

@@ -1,0 +1,13 @@
+node_modules/
+_site/
+.DS_Store
+
+# inbox：剛從 chat 下載、還沒上架的遊戲，不進版控也不進 Pages
+inbox/*
+!inbox/README.md
+
+# 自動截圖的縮圖（cover.auto.png）由 CI 產生；想固定縮圖就放 games/<slug>/cover.png 並 commit
+games/*/cover.auto.png
+
+# games.json 由 build-index.mjs 產生（CI 部署時重建）
+games.json

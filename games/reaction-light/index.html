@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>亮燈反應</title>
+  <meta name="description" content="等燈變綠再按！五回合測你的反應時間，太早按會被抓到。">
+  <meta name="game:tags" content="反應力,休閒,單人">
+  <meta name="game:added" content="2026-11-13">
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+      background: #15171c; color: #f2f2f4; user-select: none; -webkit-user-select: none; touch-action: manipulation;
+      font: 16px/1.5 system-ui, -apple-system, "PingFang TC", "Noto Sans TC", sans-serif; padding: 16px;
+    }
+    h1 { margin: 0; font-size: 24px; letter-spacing: .05em; }
+    #lamp {
+      width: min(62vw, 300px); aspect-ratio: 1; border-radius: 50%; border: 0; cursor: pointer;
+      background: #3a3d46; box-shadow: inset 0 -10px 30px rgba(0,0,0,.35); transition: background .08s, box-shadow .08s;
+      color: #fff; font: 600 20px/1.3 inherit; padding: 20px;
+    }
+    #lamp.wait { background: #c2412d; box-shadow: 0 0 40px rgba(194,65,45,.45), inset 0 -10px 30px rgba(0,0,0,.3); }
+    #lamp.go { background: #2fb85a; box-shadow: 0 0 60px rgba(47,184,90,.7), inset 0 -10px 30px rgba(0,0,0,.2); }
+    #lamp:focus-visible { outline: 3px solid #7aa2ff; outline-offset: 6px; }
+    #msg { min-height: 3em; text-align: center; max-width: 360px; }
+    .dots { display: flex; gap: 10px; }
+    .dots span { width: 46px; text-align: center; font-size: 13px; color: #a0a0a8; border-top: 3px solid #3a3d46; padding-top: 4px; }
+    .dots span.done { color: #f2f2f4; border-color: #2fb85a; }
+    .dots span.bad { color: #ff8a73; border-color: #c2412d; }
+    .best { color: #a0a0a8; font-size: 14px; }
+    .hint { color: #6f7280; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h1>亮燈反應</h1>
+  <button id="lamp" aria-live="polite">點一下開始</button>
+  <div id="msg">燈變<b style="color:#2fb85a">綠</b>的瞬間按下去。紅燈時按就算偷跑。</div>
+  <div class="dots" id="dots"></div>
+  <div class="best" id="best"></div>
+  <div class="hint">也可以按空白鍵</div>
+
+  <script>
+    const ROUNDS = 5;
+    const KEY = 'sc-games:reaction-light:best';
+    const lamp = document.getElementById('lamp');
+    const msg = document.getElementById('msg');
+    const dots = document.getElementById('dots');
+    const bestEl = document.getElementById('best');
+
+    let state = 'idle';      // idle → wait → go → (wait …) → result
+    let times = [];          // 每回合毫秒；偷跑記 null
+    let timer = 0, goAt = 0;
+
+    const store = {
+      get() { try { return Number(localStorage.getItem(KEY)) || 0; } catch { return 0; } },
+      set(v) { try { localStorage.setItem(KEY, String(v)); } catch {} },
+    };
+
+    function showBest() {
+      const b = store.get();
+      bestEl.textContent = b ? `你的最佳平均：${b} ms` : '還沒有紀錄';
+    }
+
+    function drawDots() {
+      dots.innerHTML = Array.from({ length: ROUNDS }, (_, i) => {
+        const t = times[i];
+        if (i >= times.length) return '<span>—</span>';
+        return t == null ? '<span class="bad">偷跑</span>' : `<span class="done">${t}</span>`;
+      }).join('');
+    }
+
+    function arm() {
+      state = 'wait';
+      lamp.className = 'wait';
+      lamp.textContent = '等待…';
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        state = 'go';
+        goAt = performance.now();
+        lamp.className = 'go';
+        lamp.textContent = '按！';
+      }, 1200 + Math.random() * 2800);
+    }
+
+    function finish() {
+      state = 'result';
+      lamp.className = '';
+      const ok = times.filter((t) => t != null);
+      if (!ok.length) {
+        lamp.textContent = '再來一次';
+        msg.textContent = '五次都偷跑了 😅 慢慢來，等綠燈。';
+        return;
+      }
+      const avg = Math.round(ok.reduce((a, b) => a + b, 0) / ok.length);
+      const penalty = (ROUNDS - ok.length) * 100;
+      const score = avg + penalty;
+      const best = store.get();
+      const isBest = !best || score < best;
+      if (isBest) store.set(score);
+      lamp.textContent = `${score} ms`;
+      msg.innerHTML =
+        `平均 ${avg} ms${penalty ? `，偷跑罰 ${penalty} ms` : ''}。` +
+        (isBest ? '<br><b>新紀錄！</b>' : '') +
+        `<br>${rank(score)}　點燈再玩一次`;
+      showBest();
+    }
+
+    function rank(ms) {
+      if (ms < 220) return '⚡ 閃電級';
+      if (ms < 280) return '🏃 很快';
+      if (ms < 350) return '🙂 不錯';
+      if (ms < 450) return '🐢 再暖身一下';
+      return '😴 剛睡醒嗎';
+    }
+
+    function press() {
+      if (state === 'idle' || state === 'result') {
+        times = [];
+        drawDots();
+        msg.textContent = `第 1 / ${ROUNDS} 回合`;
+        arm();
+      } else if (state === 'wait') {
+        clearTimeout(timer);
+        times.push(null);
+        drawDots();
+        lamp.className = '';
+        lamp.textContent = '偷跑！';
+        msg.textContent = '還沒變綠喔，這回合不算。';
+        next(900);
+      } else if (state === 'go') {
+        times.push(Math.round(performance.now() - goAt));
+        drawDots();
+        lamp.className = '';
+        lamp.textContent = `${times.at(-1)} ms`;
+        next(800);
+      }
+    }
+
+    function next(delay) {
+      state = 'pause';
+      setTimeout(() => {
+        if (times.length >= ROUNDS) return finish();
+        msg.textContent = `第 ${times.length + 1} / ${ROUNDS} 回合`;
+        arm();
+      }, delay);
+    }
+
+    lamp.addEventListener('pointerdown', (e) => { e.preventDefault(); press(); });
+    lamp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); press(); } });
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && !e.repeat) { e.preventDefault(); press(); }
+    });
+
+    drawDots();
+    showBest();
+  </script>
+</body>
+</html>
